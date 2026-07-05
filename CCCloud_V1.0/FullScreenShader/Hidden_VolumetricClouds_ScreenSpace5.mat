@@ -1,0 +1,95 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Hidden_VolumetricClouds_ScreenSpace5
+  m_Shader: {fileID: 4800000, guid: 97819585cbe08244c814d7bdd0ff74ce, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: 3000
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _NoiseTex:
+        m_Texture: {fileID: 2800000, guid: e531f4f14d129954b8ded7ec1adcef6f, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _NoiseTex3D1:
+        m_Texture: {fileID: 11700000, guid: cf683b0052b54494f9b5745a842a3ee5, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _NoiseTex3D2:
+        m_Texture: {fileID: 11700000, guid: f82c291a8d712d6419f50363cbd92d8a, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _ProfileTex:
+        m_Texture: {fileID: 2800000, guid: e473e57de6b8ea144a3725891bfdf363, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _WeatherTex:
+        m_Texture: {fileID: 2800000, guid: 334a43498c04a844d87f1fd0b0b27302, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _AOIntensity: 1
+    - _AdaptiveViewStepSize: 2.26
+    - _BlurRadius: 1.04
+    - _CloudBottom: 0
+    - _CloudRadius: 3978
+    - _CloudTop: 400
+    - _CloudType: 0.757
+    - _Coverage: 0.953
+    - _DebugCheapSample: 0.286
+    - _Density: 0.03
+    - _DistanceFogColorFactor: 1
+    - _DistanceFogDensity: 3.23
+    - _EnableAdaptiveStep: 0.309
+    - _EnableWispy: 0.682
+    - _FactorSwift: 1
+    - _FrequencyMix: 0.359
+    - _G: 0.831
+    - _HeightFogDensity: 0.485
+    - _IsotropySkyLightFactor: 0.324
+    - _LightAbsorption: 0.48
+    - _LightIntensity: 1.6
+    - _LightStep: 3.59
+    - _LightStepMultiplier: 1.289
+    - _MaxAOIntensity: 1
+    - _MaxStepSize: 84
+    - _MsExtinctionFactor: 1
+    - _MsScatterFactor: 0.5
+    - _MultiScatteringStrength: 0.47
+    - _ProfileTexUV_V: 0.231
+    - _ShadowStrength: 1.12
+    - _SkyUpStep: 2
+    - _SkyUpStepSize: 3.61
+    - _StepCount: 267
+    - _SunHorizonBlend: 0.3
+    - _SunHorizonHeight: 0.268
+    - _UseSphericalShell: 0.233
+    - _VolumeTexScaler1: 0.114
+    - _VolumeTexScaler2: 0.233
+    - _WeatherTexIntensity: 0
+    - _WeathereTexScaler: 0.27
+    - _WispyIntensity: 0.228
+    m_Colors:
+    - _CameraPos: {r: 0, g: 0, b: 0, a: 0}
+    - _IsotropySkyColor: {r: 0.68452585, g: 0.7378756, b: 0.8742138, a: 1}
+    - _PlanetCenter: {r: 0, g: -6371, b: 0, a: 1}
+    - _SunDayColor: {r: 0.9411765, g: 0.96097493, b: 1, a: 1}
+    - _SunHorizonColor: {r: 1, g: 0.51664966, b: 0.15408784, a: 1}
+  m_BuildTextureStacks: []
