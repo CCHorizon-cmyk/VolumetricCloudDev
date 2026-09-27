@@ -1,0 +1,1635 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AC7 云密度：Free Camera + Profile Compare</title>
+<style>
+:root{--bg:#07111f;--panel:rgba(7,15,28,.91);--line:rgba(255,255,255,.13);--text:#eef5ff;--muted:#9fb2c9;--accent:#5ab0ff;--good:#7fe0a9;--warn:#ffc66d}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block;background:linear-gradient(#173c69,#87acd0)}
+.divider{position:fixed;z-index:3;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.35);pointer-events:none}
+.vlabel{position:fixed;z-index:4;top:12px;transform:translateX(-50%);padding:6px 10px;border:1px solid var(--line);border-radius:9px;background:rgba(3,9,17,.73);backdrop-filter:blur(8px);font-size:11px;text-align:center;pointer-events:none}
+.vlabel b{display:block;font-size:12px}
+.vlabel span{color:var(--muted)}
+#ll{left:25%}
+#rl{left:75%}
+.panel{position:fixed;z-index:5;left:14px;bottom:14px;width:min(440px,calc(100vw - 28px));max-height:68vh;overflow:auto;background:var(--panel);backdrop-filter:blur(15px);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:0 18px 60px rgba(0,0,0,.35);transition:transform .2s ease,opacity .2s ease}
+.panel.collapsed{transform:translateX(calc(-100% - 28px));opacity:0;pointer-events:none}
+.panel-toggle{position:fixed;z-index:6;left:14px;top:14px;border:1px solid var(--line);background:rgba(3,9,17,.80);color:var(--text);border-radius:10px;padding:8px 11px;font-size:11px;cursor:pointer;backdrop-filter:blur(8px);box-shadow:0 10px 28px rgba(0,0,0,.25)}
+.panel-toggle:hover{background:rgba(255,255,255,.12)}
+h1{font-size:16px;margin:0 0 4px}
+.sub{font-size:11px;line-height:1.5;color:var(--muted);margin-bottom:9px}
+.buttons,.inline{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+button,select{border:1px solid var(--line);background:rgba(255,255,255,.07);color:var(--text);border-radius:8px;padding:6px 9px;font-size:11px}
+button{cursor:pointer}
+button:hover{background:rgba(255,255,255,.13)}
+button.primary{border-color:rgba(90,176,255,.65);background:rgba(90,176,255,.15)}
+.group{border-top:1px solid var(--line);padding-top:9px;margin-top:9px}
+.gt{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#c9d8e9;margin-bottom:6px}
+.row{display:grid;grid-template-columns:126px 1fr 56px;gap:8px;align-items:center;margin:6px 0}
+.row label{font-size:11px}
+.row output{font:10px ui-monospace,monospace;text-align:right;color:#aac6e7}
+input[type=range]{width:100%;accent-color:var(--accent)}
+input[type=checkbox]{accent-color:var(--accent)}
+.profilebox{display:grid;grid-template-columns:1fr 115px;gap:8px;margin-top:8px}
+#plot{width:100%;height:106px;border:1px solid var(--line);border-radius:8px;background:rgba(0,0,0,.17)}
+.metric{border:1px solid var(--line);border-radius:8px;padding:8px;background:rgba(0,0,0,.14);font-size:10px;line-height:1.5;color:var(--muted)}
+.metric b{display:block;font-size:16px;color:var(--good);font-variant-numeric:tabular-nums}
+.note{font-size:10px;line-height:1.5;color:var(--muted);margin-top:6px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:7px}
+.stat{border:1px solid var(--line);border-radius:8px;padding:6px;background:rgba(255,255,255,.035)}
+.stat b{display:block;font-size:12px;font-variant-numeric:tabular-nums}
+.stat span{font-size:8px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.eq{font:10px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#d0e0f2;background:rgba(0,0,0,.16);border:1px solid var(--line);border-radius:8px;padding:8px;margin-top:7px;white-space:pre-wrap}
+#status{position:fixed;z-index:10;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(4,10,19,.88);border:1px solid var(--line);border-radius:12px;padding:12px 16px;font-size:12px;color:#dce9f7}
+.error{color:#ffd0d8;border-color:#8c4050}
+.hint{position:fixed;z-index:4;right:12px;bottom:12px;font-size:10px;color:#c4d0de;background:rgba(3,9,17,.68);border:1px solid var(--line);border-radius:8px;padding:6px 8px;max-width:360px}.camhud{position:fixed;z-index:4;left:50%;bottom:12px;transform:translateX(-50%);font:10px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#d9e7f5;background:rgba(3,9,17,.70);border:1px solid var(--line);border-radius:8px;padding:6px 9px;pointer-events:none}
+@media(max-width:760px){.panel{width:360px;max-height:60vh}.row{grid-template-columns:112px 1fr 47px}.hint{display:none}}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas><div class="divider"></div>
+<div class="vlabel" id="ll"><b>左：Upper Density Retention</b><span>当前模型</span></div>
+<div class="vlabel" id="rl"><b>右：显式 Height Profile</b><span id="rmode">Profile → Threshold</span></div>
+<div id="status">正在初始化 3D Noise…</div>
+<button id="togglePanel" class="panel-toggle" aria-expanded="true">隐藏面板 [H]</button>
+
+<section class="panel" id="controlPanel">
+  <h1>Free Camera 云海穿行 + 密度对照</h1>
+  <div class="sub">加入基础自由摄像机与可选自动飞行模式：已修正水平旋转方向和 A/D 横移方向，并加入主射线最大世界步长限制，改善地平线附近的大步长噪点。天气图改成几十到几百公里的世界空间超低频分布，并与高频细节噪声的偏移速度完全解耦；天空和云合成统一使用同一套曝光 / Gamma 映射。左右仍然共用同一相机和光照；当前默认已经固化为“右侧 Profile 当前参数 + 左侧近似等价 Retention”这组实验状态，便于开页直接对比。</div>
+  <div class="buttons">
+    <button class="primary" id="fit">Auto Fit Profile</button>
+    <button id="preset">截图默认参数</button>
+    <button id="resetCam">重置相机</button>
+  </div>
+
+  <div class="group">
+    <div class="gt">验证模式</div>
+    <div class="inline">
+      <label>右侧算法</label>
+      <select id="mode">
+        <option value="0">Profile → Threshold（等价）</option>
+        <option value="1">Profile × Density（传统后乘）</option>
+      </select>
+      <label><input id="animate" type="checkbox" checked> 平流</label>
+    </div>
+    <div class="profilebox">
+      <canvas id="plot" width="280" height="106"></canvas>
+      <div class="metric">Profile 曲线 RMS<b id="rms">0.0000</b><span id="fitState">已拟合</span></div>
+    </div>
+    <div class="note">实线：左侧 Retention；虚线：右侧 Topology Profile。默认已精确拟合。切到“Profile × Density”后可对比传统做法与当前方法的拓扑差异。</div>
+  </div>
+
+  <div class="group">
+    <div class="gt">Camera / 自由摄像机</div>
+    <div class="row"><label>Move Speed</label><input id="moveSpeed" type="range" min="100" max="2000" step="10"><output></output></div>
+    <div class="row"><label>Boost ×</label><input id="boost" type="range" min="1" max="8" step="0.1"><output></output></div>
+    <div class="row"><label>Look Sensitivity</label><input id="lookSpeed" type="range" min="0.001" max="0.012" step="0.0005"><output></output></div>
+    <div class="row"><label>View Distance</label><input id="viewDistance" type="range" min="5000" max="200000" step="1000"><output></output></div>
+    <div class="row"><label>Auto Cruise Speed</label><input id="flightSpeed" type="range" min="100" max="2200" step="10"><output></output></div>
+    <div class="row"><label>Auto Turn Rate</label><input id="flightTurnRate" type="range" min="0.3" max="2.8" step="0.05"><output></output></div>
+    <div class="inline">
+      <label><input id="autoFlight" type="checkbox"> 自动飞行（War Thunder 风格）</label>
+      <label><input id="mouseSteer" type="checkbox" checked> 鼠标引导</label>
+    </div>
+    <div class="row"><label>Cruise Altitude</label><input id="cruiseAltitude" type="range" min="-5000" max="30000" step="100"><output></output></div>
+    <div class="row"><label>Altitude Response</label><input id="altitudeResponse" type="range" min="0.10" max="3.00" step="0.05"><output></output></div>
+    <div class="row"><label>Max Climb Rate</label><input id="maxClimbRate" type="range" min="50" max="2500" step="25"><output></output></div>
+    <div class="inline">
+      <label><input id="fixedAltitude" type="checkbox"> 固定高度巡航</label>
+      <button id="setCruiseAltitude">以当前高度为巡航高度</button>
+    </div>
+    <div class="note">手动模式：W/S 沿视线前后飞，A/D 横移，Q/E 世界坐标升降。自动飞行：持续沿机头前进并支持鼠标引导；开启“固定高度巡航”后，水平运动仍按机头方向，但 Y 会由平滑高度控制器维持在 Cruise Altitude，Q/E 暂时修正目标高度。</div>
+  </div>
+
+  <div class="group">
+    <div class="gt">Performance / 性能</div>
+    <div class="row"><label>Render Scale</label><input id="renderScale" type="range" min="0.25" max="0.75" step="0.05"><output></output></div>
+    <div class="row"><label>Max Ray Steps</label><input id="steps" type="range" min="24" max="256" step="1"><output></output></div>
+    <div class="row"><label>Max March Step</label><input id="maxWorldStep" type="range" min="40" max="400" step="5"><output></output></div>
+    <div class="row"><label>Horizon Tail Samples</label><input id="horizonTailSteps" type="range" min="0" max="8" step="1"><output></output></div>
+    <div class="row"><label>View Soft Clip</label><input id="viewSoftClip" type="range" min="1000" max="30000" step="500"><output></output></div>
+    <div class="inline">
+      <label><input id="adaptiveSteps" type="checkbox" checked> 路径长度自适应步数</label>
+      <label><input id="emptySkip" type="checkbox" checked> Coarse occupancy 空域快速跳过</label>
+    </div>
+    <div class="note">Max March Step 现在只负责近场详细积分，并保持真正的世界空间步长上限。接近水平面、路径超过详细步数预算后，剩余距离改走低频 Horizon Tail；View Soft Clip 用于平滑远裁剪，避免在固定角度形成采样制度突变。</div>
+    <div class="stats">
+      <div class="stat"><b id="fps">--</b><span>FPS</span></div>
+      <div class="stat"><b id="rtres">--</b><span>Cloud RT</span></div>
+      <div class="stat"><b id="pix">--</b><span>Pixel Ratio</span></div>
+      <div class="stat"><b id="pixelMae">--</b><span>Pixel MAE</span></div>
+    </div>
+  </div>
+
+  <details class="group" open>
+    <summary class="gt" style="cursor:pointer">Aerial Volume Light / 空气散射体积光</summary>
+    <div class="inline">
+      <label><input id="shaftEnabled" type="checkbox" checked> 启用摄像机中心 Cloud Light Field</label>
+    </div>
+    <div class="note" style="margin-bottom:8px">光源空间透射率 RT 会始终以摄像机为中心自动跟随：每帧都令 RT Center = Camera Position，因此你调分辨率时不会破坏中心对齐。</div>
+    <div class="row"><label>Transmittance RT Resolution</label><input id="shaftMapRes" type="range" min="32" max="256" step="16"><output></output></div>
+    <div class="row"><label>RT World Size</label><input id="shaftWorldSize" type="range" min="20000" max="160000" step="5000"><output></output></div>
+    <div class="row"><label>RT Depth</label><input id="shaftMapDepth" type="range" min="30000" max="180000" step="5000"><output></output></div>
+    <div class="row"><label>RT Light Steps</label><input id="shaftMapSteps" type="range" min="6" max="32" step="1"><output></output></div>
+    <div class="row"><label>Hit Transmittance</label><input id="shaftHitT" type="range" min="0.05" max="0.90" step="0.01"><output></output></div>
+    <div class="row"><label>Hit Weight Width</label><input id="shaftHitWidth" type="range" min="0.03" max="0.50" step="0.01"><output></output></div>
+    <div class="row"><label>Hit Depth Softness</label><input id="shaftDepthSoftness" type="range" min="100" max="6000" step="100"><output></output></div>
+
+    <div class="gt" style="margin-top:10px">AIR SCATTERING / 空气介质</div>
+    <div class="row"><label>Air Scatter Strength</label><input id="airScatterStrength" type="range" min="0.00" max="4.00" step="0.05"><output></output></div>
+    <div class="row"><label>Air Extinction / km</label><input id="airExtinction" type="range" min="0.000" max="0.250" step="0.005"><output></output></div>
+    <div class="row"><label>Air Scale Height</label><input id="airScaleHeight" type="range" min="1000" max="20000" step="500"><output></output></div>
+    <div class="row"><label>Air Phase G</label><input id="airPhaseG" type="range" min="0.00" max="0.90" step="0.01"><output></output></div>
+
+    <div class="note">
+      Light Field 本身只由云体生成：R=云遮挡后的总太阳透射度，G=达到目标透射度附近的加权命中深度，B=命中可信度。最终体积光不再属于云 Density；主视线沿“空气”独立积分，根据当前位置在加权命中深度的前/后得到太阳可见度，再产生空气单次散射。云只是遮光体。RT 分辨率现在可单独调整，而且 RT 中心每帧锁定在摄像机位置。当前默认采用 256²×2 atlas、12 步光源空间 RT，并使用最新空气散射参数。
+    </div>
+  </details>
+
+  <div class="group">
+    <div class="gt">左侧：Upper Density / Macro</div>
+    <div class="row"><label>Layer Height</label><input id="layerHeight" type="range" min="500" max="22000" step="100"><output></output></div>
+    <div class="row"><label>Volume Width</label><input id="volumeWidth" type="range" min="0.8" max="7" step="0.05"><output></output></div>
+    <div class="row"><label>Upper Density</label><input id="upperDensity" type="range" min="0.02" max="1" step="0.01"><output></output></div>
+    <div class="row"><label>Distribution Base</label><input id="distBase" type="range" min="0.05" max="0.75" step="0.01"><output></output></div>
+    <div class="row"><label>Transition</label><input id="distTransition" type="range" min="0.04" max="0.50" step="0.01"><output></output></div>
+    <div class="row"><label>Coverage</label><input id="coverage" type="range" min="0.15" max="0.95" step="0.01"><output></output></div>
+    <div class="note">Layer Height 现放宽到 22 km：普通云层通常远低于此值；深对流积雨云可达约 10–20 km。当前默认为 10000 m 厚云，并使用当前截图中的项目参数作为默认值；4 级 fBm 频率已拆成独立可调参数。</div>
+  </div>
+
+  <div class="group">
+    <div class="gt">右侧：Height Profile（等价参数化）</div>
+    <div class="row"><label>Topology Upper</label><input id="profileUpper" type="range" min="0.02" max="1" step="0.01"><output></output></div>
+    <div class="row"><label>Topology Shoulder</label><input id="profileBase" type="range" min="0.05" max="0.75" step="0.01"><output></output></div>
+    <div class="row"><label>Topology Falloff</label><input id="profileTransition" type="range" min="0.04" max="0.50" step="0.01"><output></output></div>
+    <div class="row"><label>Topology Gain</label><input id="profileGain" type="range" min="0.5" max="1.5" step="0.01"><output></output></div>
+    <div class="row"><label>Boundary Bottom End</label><input id="profileBottomFadeEnd" type="range" min="0.01" max="0.30" step="0.01"><output></output></div>
+    <div class="row"><label>Boundary Top Start</label><input id="profileTopFadeStart" type="range" min="0.55" max="0.98" step="0.01"><output></output></div>
+  </div>
+
+  <div class="group">
+    <div class="gt">Shape / 三维结构</div>
+    <div class="row"><label>Persistence</label><input id="persistence" type="range" min="0.25" max="0.75" step="0.01"><output></output></div>
+    <div class="row"><label>Worley</label><input id="worley" type="range" min="0" max="1" step="0.01"><output></output></div>
+    <div class="row"><label>Edge Erosion</label><input id="erosion" type="range" min="0" max="1" step="0.01"><output></output></div>
+  </div>
+
+  <details class="group" open>
+    <summary class="gt" style="cursor:pointer">Density / 光学参数</summary>
+    <div class="row"><label>Density Gain</label><input id="densityGain" type="range" min="0.2" max="3.0" step="0.05"><output></output></div>
+    <div class="row"><label>Density Bias</label><input id="densityBias" type="range" min="-0.5" max="0.5" step="0.01"><output></output></div>
+    <div class="row"><label>Extinction</label><input id="extinction" type="range" min="0.5" max="10.0" step="0.1"><output></output></div>
+    <div class="row"><label>Shadow Extinction</label><input id="shadowStrength" type="range" min="0.5" max="8.0" step="0.05"><output></output></div>
+    <div class="row"><label>Light Steps</label><input id="lightSteps" type="range" min="1" max="16" step="1"><output></output></div>
+    <div class="row"><label>Light Initial Step</label><input id="lightProbe" type="range" min="0.005" max="0.20" step="0.005"><output></output></div>
+    <div class="row"><label>Light Step Growth</label><input id="lightStepGrowth" type="range" min="1.00" max="2.20" step="0.05"><output></output></div>
+    <div class="row"><label>Ambient Strength</label><input id="ambientStrength" type="range" min="0.00" max="1.20" step="0.02"><output></output></div>
+    <div class="row"><label>Direct Strength</label><input id="directStrength" type="range" min="0.20" max="3.00" step="0.05"><output></output></div>
+    <div class="row"><label>Sun Azimuth</label><input id="sunAzimuth" type="range" min="0" max="360" step="1"><output></output></div>
+    <div class="row"><label>Sun Elevation</label><input id="sunElevation" type="range" min="-5" max="90" step="1"><output></output></div>
+    <div class="row"><label>Phase G</label><input id="phaseG" type="range" min="0.00" max="0.85" step="0.01"><output></output></div>
+    <div class="row"><label>Phase Strength</label><input id="phaseStrength" type="range" min="0.00" max="3.00" step="0.05"><output></output></div>
+    <div class="row"><label>Powder Strength</label><input id="powderStrength" type="range" min="0.00" max="5.00" step="0.05"><output></output></div>
+    <div class="row"><label>Powder Amount</label><input id="powderAmount" type="range" min="0.00" max="1.00" step="0.02"><output></output></div>
+    <div class="row"><label>Exposure</label><input id="exposure" type="range" min="0.30" max="2.50" step="0.05"><output></output></div>
+    <div class="note">HG 相位函数现在作为独立的加性方向散射项，不再乘在 Direct 上。Direct 只由太阳透射、Direct Strength 与 Powder 控制；Phase Strength 单独控制前向散射亮度。</div>
+  </details>
+
+  <details class="group" open>
+    <summary class="gt" style="cursor:pointer">MS Curve / 多散射光照闭包</summary>
+    <div class="inline">
+      <label>MS Model</label>
+      <select id="msModel">
+        <option value="0">Phi Fwd</option>
+        <option value="1">Polynomial</option>
+        <option value="2">Exp-Polynomial</option>
+      </select>
+    </div>
+
+    <div class="note" style="margin-top:7px">
+      直射光始终保持 <code>exp(-OD)</code>。这里只替换多散射附加项。两种曲线模式都使用当前 light ray 已经积分出的 <code>OD</code>，不会增加 Density 采样。
+    </div>
+
+    <div class="gt" style="margin-top:10px">Polynomial</div>
+    <div class="row"><label>Poly Gain</label><input id="polyGain" type="range" min="0.00" max="4.00" step="0.01"><output></output></div>
+    <div class="row"><label>Poly C0</label><input id="polyC0" type="range" min="-1.00" max="1.00" step="0.001"><output></output></div>
+    <div class="row"><label>Poly C1</label><input id="polyC1" type="range" min="-0.50" max="0.50" step="0.001"><output></output></div>
+    <div class="row"><label>Poly C2</label><input id="polyC2" type="range" min="-0.10" max="0.10" step="0.0005"><output></output></div>
+    <div class="row"><label>Poly C3</label><input id="polyC3" type="range" min="-0.02" max="0.02" step="0.0001"><output></output></div>
+
+    <div class="gt" style="margin-top:10px">Exp-Polynomial</div>
+    <div class="row"><label>ExpPoly Gain</label><input id="expPolyGain" type="range" min="0.00" max="1.00" step="0.005"><output></output></div>
+    <div class="row"><label>Exp C0</label><input id="expC0" type="range" min="-1.00" max="2.00" step="0.001"><output></output></div>
+    <div class="row"><label>Exp C1</label><input id="expC1" type="range" min="-1.00" max="1.00" step="0.001"><output></output></div>
+    <div class="row"><label>Exp C2</label><input id="expC2" type="range" min="-0.20" max="0.20" step="0.0005"><output></output></div>
+    <div class="row"><label>Exp C3</label><input id="expC3" type="range" min="-0.05" max="0.05" step="0.0001"><output></output></div>
+    <div class="row"><label>MS Curve Clamp</label><input id="msCurveClamp" type="range" min="0.01" max="2.00" step="0.01"><output></output></div>
+
+    <div class="eq">Polynomial:
+MS = (1 - Tdirect) × Gain × max(C0 + C1·OD + C2·OD² + C3·OD³, 0)
+
+Exp-Polynomial:
+MS = (1 - Tdirect) × Gain × exp(-max(C0 + C1·OD + C2·OD² + C3·OD³, 0))</div>
+  </details>
+
+  <details class="group" open>
+    <summary class="gt" style="cursor:pointer">Phi Fwd / 漫射场</summary>
+    <div class="row"><label>Phi Intensity</label><input id="phiIntensity" type="range" min="0.00" max="3.00" step="0.05"><output></output></div>
+    <div class="row"><label>Single Scatter Albedo</label><input id="phiOmega0" type="range" min="0.950" max="0.9999" step="0.0005"><output></output></div>
+    <div class="row"><label>MS Build Scale</label><input id="phiMSBuild" type="range" min="0.00" max="6.00" step="0.05"><output></output></div>
+    <div class="row"><label>Phi Compress</label><input id="phiCompress" type="range" min="0.00" max="8.00" step="0.10"><output></output></div>
+    <div class="row"><label>Depth Pow</label><input id="phiDepthPow" type="range" min="0.00" max="4.00" step="0.05"><output></output></div>
+    <div class="row"><label>Depth Bias</label><input id="phiDepthBias" type="range" min="-0.40" max="0.60" step="0.01"><output></output></div>
+    <div class="row"><label>Boundary Confidence</label><input id="phiBoundaryConfidence" type="range" min="0.00" max="1.00" step="0.02"><output></output></div>
+    <div class="row"><label>Phi Shadow Floor</label><input id="phiShadowFloor" type="range" min="0.00" max="1.00" step="0.01"><output></output></div>
+    <div class="row"><label>Phi Shadow Preserve</label><input id="phiShadowPreserve" type="range" min="0.00" max="2.50" step="0.01"><output></output></div>
+    <div class="note">沿现有太阳中心线同步累计 phi_fwd：不做锥形采样。当前默认采用较克制的漫射参数（Intensity 0.25 / ω0 0.981 / MS Build 0.20），避免厚云内部被过度奶白化；另外加入了阴影保持项，避免 phi 把局部阴影完全洗平。</div>
+  </details>
+
+
+  <details class="group" open>
+    <summary class="gt" style="cursor:pointer">Motion / 采样偏移</summary>
+    <div class="row"><label>Weather Scale</label><input id="weatherScaleKm" type="range" min="20" max="400" step="5"><output></output></div>
+    <div class="row"><label>Weather Influence</label><input id="weatherInfluence" type="range" min="0.00" max="0.80" step="0.01"><output></output></div>
+    <div class="row"><label>Weather Wind X</label><input id="weatherWindX" type="range" min="-80" max="80" step="1"><output></output></div>
+    <div class="row"><label>Weather Wind Z</label><input id="weatherWindZ" type="range" min="-80" max="80" step="1"><output></output></div>
+    <div class="row"><label>Detail Drift X</label><input id="detailDriftX" type="range" min="-0.08" max="0.08" step="0.001"><output></output></div>
+    <div class="row"><label>Detail Drift Z</label><input id="detailDriftZ" type="range" min="-0.08" max="0.08" step="0.001"><output></output></div>
+    <div class="note">Weather 改为世界空间宏观尺度：默认约 180 km 一个主分布周期，并用 m/s 表示天气带平移速度。Detail Drift 仍只作用于 fBm / Worley / erosion，因此宏观天气和局部细节运动完全解耦。</div>
+  </details>
+
+  <details class="group" open>
+    <summary class="gt" style="cursor:pointer">Advanced / Upper Density 密度链隐藏参数</summary>
+    <div class="row"><label>Bottom Fade End</label><input id="bottomFadeEnd" type="range" min="0.01" max="0.30" step="0.01"><output></output></div>
+    <div class="row"><label>Top Fade Start</label><input id="topFadeStart" type="range" min="0.55" max="0.98" step="0.01"><output></output></div>
+    <div class="row"><label>Threshold Base</label><input id="thresholdBase" type="range" min="0.40" max="0.90" step="0.01"><output></output></div>
+    <div class="row"><label>Coverage → Threshold</label><input id="coverageScale" type="range" min="0.05" max="0.60" step="0.01"><output></output></div>
+    <div class="row"><label>Threshold Width</label><input id="thresholdWidth" type="range" min="0.03" max="0.35" step="0.01"><output></output></div>
+    <div class="row"><label>Domain XZ Scale</label><input id="domainXZ" type="range" min="1" max="14" step="0.1"><output></output></div>
+    <div class="row"><label>Domain Y Scale</label><input id="domainY" type="range" min="0.5" max="5" step="0.05"><output></output></div>
+    <div class="row"><label>fBm Octave 0 Freq</label><input id="fbmFreq0" type="range" min="0.005" max="1.500" step="0.005"><output></output></div>
+    <div class="row"><label>fBm Octave 1 Freq</label><input id="fbmFreq1" type="range" min="0.005" max="1.500" step="0.005"><output></output></div>
+    <div class="row"><label>fBm Octave 2 Freq</label><input id="fbmFreq2" type="range" min="0.005" max="1.500" step="0.005"><output></output></div>
+    <div class="row"><label>fBm Octave 3 Freq</label><input id="fbmFreq3" type="range" min="0.005" max="1.500" step="0.005"><output></output></div>
+    <div class="row"><label>Worley Freq</label><input id="worleyFreq" type="range" min="0.02" max="0.20" step="0.005"><output></output></div>
+    <div class="row"><label>Worley Shape Weight</label><input id="worleyShapeWeight" type="range" min="0" max="0.70" step="0.01"><output></output></div>
+    <div class="row"><label>Erosion Freq</label><input id="erosionFreq" type="range" min="0.10" max="1.20" step="0.01"><output></output></div>
+    <div class="row"><label>Erosion Amplitude</label><input id="erosionAmp" type="range" min="0" max="0.50" step="0.01"><output></output></div>
+    <div class="row"><label>Coarse Margin</label><input id="coarseMargin" type="range" min="0.05" max="0.40" step="0.01"><output></output></div>
+    <div class="note">4 级 fBm 现已拆成独立频率控制：Octave 0–3 分别直接采样，不再强制使用固定 lacunarity。默认值沿用原先 base=0.035、ratio≈2.03 的链条。</div>
+  </details>
+
+  <div class="eq">左：R(h) → Coverage × R(h) → Threshold(h) → Density × Boundary(h)
+右等价：TopologyProfile(h) → Coverage × P(h) → Threshold(h) → Density × BoundaryProfile(h)
+右传统：固定 Threshold → Density × TopologyProfile(h) × BoundaryProfile(h)
+
+View: τ += ρ × dt/H × Extinction
+Light: τL += ρᵢ × dsᵢ/H × ShadowExtinction,  dsᵢ₊₁ = dsᵢ × Growth\nPhi: 同一条太阳中心线累计 Q/D · exp(-κr) · 1/r · MSBuild（无锥形采样）\nCurve MS: 直接用同一条 light ray 的累计 OD 评估 Polynomial / Exp-Polynomial，多散射曲线不增加额外密度采样。Phi Fwd 额外加入局部 shadow-preserve。\nLight Field: 云体只负责光源空间遮挡预积分 → [总 T, 加权命中深度, confidence]。主 Ray 的 AIR 介质每段独立散射，查询当前位置位于命中深度前/后得到太阳可见度；体积光属于空气，不属于云 Density。</div>
+</section>
+
+<div class="camhud" id="camhud">CAM --</div><div class="hint">拖拽：自由视角（手动） / 鼠标居中引导（自动飞行） · W/S：前后或油门 · A/D：横移或偏航修正 · Q/E：升降；固定高度巡航时改为调整目标高度 · Shift：加速 · G：重置相机 · H：显示/隐藏面板</div>
+
+<script>
+'use strict';
+requestAnimationFrame(()=>requestAnimationFrame(init));
+
+function init(){
+  const canvas = document.getElementById('gl');
+  const status = document.getElementById('status');
+  const gl = canvas.getContext('webgl2',{
+    antialias:false, alpha:false, depth:false, stencil:false, powerPreference:'high-performance'
+  });
+  if(!gl){
+    status.textContent='当前预览环境不支持 WebGL2。请在 Chrome / Edge / Firefox 中打开。';
+    status.classList.add('error');
+    return;
+  }
+
+  try{
+    const VS = `#version 300 es
+    precision highp float;
+    const vec2 P[3]=vec2[3](vec2(-1.,-1.),vec2(3.,-1.),vec2(-1.,3.));
+    out vec2 vUv;
+    void main(){ vec2 p=P[gl_VertexID]; vUv=p*.5+.5; gl_Position=vec4(p,0,1); }`;
+
+    const FS = `#version 300 es
+    precision highp float;
+    out vec4 outColor;
+    uniform vec2 uResolution;
+    uniform highp sampler3D uNoise;
+    uniform highp sampler3D uWorleyTex;
+    uniform highp sampler2D uLightFieldTex;
+    uniform float uTime,uLayerHeight,uVolumeWidth,uUpperDensity,uDistBase,uDistTransition,uCoverage;
+    uniform float uProfileUpper,uProfileBase,uProfileTransition,uProfileGain,uProfileBottomFadeEnd,uProfileTopFadeStart,uPersistence,uWorley,uErosion;
+    uniform float uBottomFadeEnd,uTopFadeStart,uThresholdBase,uCoverageScale,uThresholdWidth;
+    uniform float uDomainXZ,uDomainY,uFbmFreq0,uFbmFreq1,uFbmFreq2,uFbmFreq3,uWorleyFreq,uWorleyShapeWeight,uErosionFreq,uErosionAmp,uCoarseMargin;
+    uniform float uDensityGain,uDensityBias,uExtinction,uShadowStrength,uLightProbe,uLightStepGrowth,uViewDistance;
+    uniform float uAmbientStrength,uDirectStrength,uPhaseG,uPhaseStrength,uPowderStrength,uPowderAmount,uExposure;
+    uniform float uSunAzimuth,uSunElevation;
+    uniform float uPhiIntensity,uPhiOmega0,uPhiMSBuild,uPhiCompress,uPhiDepthPow,uPhiDepthBias,uPhiBoundaryConfidence;
+    uniform float uPhiShadowFloor,uPhiShadowPreserve;
+    uniform float uPolyGain,uPolyC0,uPolyC1,uPolyC2,uPolyC3;
+    uniform float uExpPolyGain,uExpC0,uExpC1,uExpC2,uExpC3,uMSCurveClamp;
+    uniform float uWeatherScaleKm,uWeatherInfluence,uWeatherWindX,uWeatherWindZ,uDetailDriftX,uDetailDriftZ;
+    uniform int uLightSteps,uMSModel;
+    uniform vec3 uCamPos;
+    uniform float uCamYaw,uCamPitch;
+    uniform float uMaxWorldStep,uViewSoftClip;
+    uniform vec3 uShaftMapCenter;
+    uniform float uShaftMapRes,uShaftWorldSize,uShaftMapDepth,uShaftHitT,uShaftHitWidth,uShaftDepthSoftness;
+    uniform float uAirScatterStrength,uAirExtinction,uAirScaleHeight,uAirPhaseG;
+    uniform int uMaxSteps,uProfileMode,uAdaptiveSteps,uEmptySkip,uHorizonTailSteps;
+    uniform int uPassMode,uShaftMapSteps,uShaftEnabled;
+    #define MAX_STEPS 256
+    #define MAX_HORIZON_TAIL 8
+    #define MAX_LIGHT_STEPS 16
+    #define MAX_SHAFT_MAP_STEPS 32
+
+    float n3(vec3 p){ return texture(uNoise,p).r; }
+
+    float fbm(vec3 q){
+      float a=.5,s=0.,z=0.;
+      s+=n3(q*uFbmFreq0)*a; z+=a; a*=uPersistence;
+      s+=n3(q*uFbmFreq1+vec3(.173,.311,.137))*a; z+=a; a*=uPersistence;
+      s+=n3(q*uFbmFreq2+vec3(.347,.623,.271))*a; z+=a; a*=uPersistence;
+      s+=n3(q*uFbmFreq3+vec3(.521,.934,.408))*a; z+=a;
+      return s/max(z,.001);
+    }
+
+    float leftProfile(float h){
+      float u=smoothstep(uDistBase,min(uDistBase+uDistTransition,.98),h);
+      return mix(1.,uUpperDensity,u);
+    }
+
+    float rightProfile(float h){
+      float u=smoothstep(uProfileBase,min(uProfileBase+uProfileTransition,.98),h);
+      return clamp(mix(1.,uProfileUpper,u)*uProfileGain,0.,1.5);
+    }
+
+    float sampleWeatherField(vec2 worldXZ){
+      float weatherScaleM=max(uWeatherScaleKm*1000.0,1000.0);
+      vec2 weatherWorld=worldXZ + vec2(uWeatherWindX,uWeatherWindZ)*uTime;
+      vec2 uv=weatherWorld/weatherScaleM;
+      return n3(vec3(uv.x,0.37,uv.y));
+    }
+
+    void coord(vec3 p,bool right,out float h,out float boundary,out float threshold,out vec3 q,out float weather){
+      float H=max(uLayerHeight,1.);
+      h=p.y/H;
+      float btm=right?uProfileBottomFadeEnd:uBottomFadeEnd;
+      float topStart=right?uProfileTopFadeStart:uTopFadeStart;
+      boundary=smoothstep(0.,btm,h)*(1.-smoothstep(topStart,1.,h));
+      float v=right?rightProfile(h):leftProfile(h);
+      float W=H*uVolumeWidth;
+      vec2 xz = vec2(p.x/W*uDomainXZ, p.z/W*uDomainXZ);
+
+      // Extremely low-frequency macro weather map in WORLD SPACE.
+      // One texture period spans uWeatherScaleKm kilometers.
+      weather = sampleWeatherField(p.xz);
+      float coverageMul = mix(1.0-uWeatherInfluence, 1.0+uWeatherInfluence, weather);
+      float effectiveCoverage = uCoverage * v * coverageMul;
+
+      threshold=(right&&uProfileMode==1)
+        ? (uThresholdBase-uCoverageScale*uCoverage*coverageMul)
+        : (uThresholdBase-uCoverageScale*effectiveCoverage);
+
+      // Faster detail drift: affects fBm / Worley / erosion shape.
+      q=vec3(xz.x,h*uDomainY,xz.y)+vec3(uTime*uDetailDriftX,0.,uTime*uDetailDriftZ);
+    }
+
+    float density(vec3 p,bool right){
+      float h,b,t,weather; vec3 q;
+      coord(p,right,h,b,t,q,weather);
+      if(h<=0. || h>=1. || b<=.001) return 0.;
+
+      float base=fbm(q);
+      float billow=texture(uWorleyTex,q*uWorleyFreq+vec3(.21,.13,.37)).r;
+      float shape=mix(base, base*(1.-uWorleyShapeWeight)+billow*uWorleyShapeWeight, uWorley);
+
+      float edge=n3(q*uErosionFreq+vec3(.11,.37,.23));
+      shape -= (1.-edge)*uErosion*uErosionAmp;
+
+      float d=smoothstep(t,min(t+uThresholdWidth,.98),shape);
+      if(right && uProfileMode==1) d*=clamp(rightProfile(h),0.,1.);
+      d = clamp(d*uDensityGain + uDensityBias, 0., 1.);
+      return d*b;
+    }
+
+    float coarse(vec3 p,bool right){
+      float h,b,t,weather; vec3 q;
+      coord(p,right,h,b,t,q,weather);
+      if(h<=0. || h>=1. || b<=.001) return -1.;
+      float c=n3(q*uFbmFreq0)*.72+n3(q*uFbmFreq1+vec3(.17,.31,.14))*.28;
+      return c-(t-uCoarseMargin);
+    }
+
+    float smoothMinDistance(float a,float b,float k){
+      if(k<=0.0) return min(a,b);
+      float h=clamp(0.5+0.5*(b-a)/k,0.0,1.0);
+      return mix(b,a,h)-k*h*(1.0-h);
+    }
+
+    float farDensityApprox(vec3 p,bool right){
+      float h,b,t,weather; vec3 q;
+      coord(p,right,h,b,t,q,weather);
+      if(h<=0.0 || h>=1.0 || b<=0.001) return 0.0;
+
+      // Deliberately low-frequency: no Worley microstructure and no erosion.
+      float n0=n3(q*uFbmFreq0);
+      float n1=n3(q*uFbmFreq1+vec3(.173,.311,.137));
+      float shape=n0*.72+n1*.28;
+      float d=smoothstep(t,min(t+uThresholdWidth*1.35,.98),shape);
+      if(right && uProfileMode==1) d*=clamp(rightProfile(h),0.0,1.0);
+      d=clamp(d*uDensityGain+uDensityBias,0.0,1.0);
+      return d*b;
+    }
+
+    bool slab(vec3 ro,vec3 rd,float H,out float t0,out float t1){
+      // Camera position is unrestricted. This only intersects rays with the cloud slab y=[0,H].
+      // uViewDistance is a render-distance budget, independent of LayerHeight.
+      if(abs(rd.y)<1e-5){
+        if(ro.y>0. && ro.y<H){
+          t0=0.;
+          t1=uViewDistance;
+          return true;
+        }
+        return false;
+      }
+      float a=-ro.y/rd.y;
+      float b=(H-ro.y)/rd.y;
+      float entry=min(a,b);
+      float exit=max(a,b);
+      t0=max(0.,entry);
+      t1=smoothMinDistance(exit,uViewDistance,uViewSoftClip);
+      return t1>t0;
+    }
+
+    vec3 sunDirection(){
+      float az=radians(uSunAzimuth);
+      float el=radians(uSunElevation);
+      float ce=cos(el);
+      return normalize(vec3(
+        sin(az)*ce,
+        sin(el),
+        cos(az)*ce
+      ));
+    }
+
+    vec3 sunColor(){
+      // Low sun: warmer / more orange. High sun: more neutral white.
+      float e=clamp((uSunElevation + 5.0)/95.0,0.0,1.0);
+      float warm=1.0-smoothstep(0.10,0.55,e);
+
+      vec3 horizonCol=vec3(1.20,0.72,0.42);
+      vec3 zenithCol =vec3(1.08,1.04,0.95);
+      vec3 col=mix(horizonCol,zenithCol,e);
+
+      // Extra red/orange bias very close to the horizon.
+      col=mix(col,col*vec3(1.06,0.95,0.86),warm*0.35);
+      return col;
+    }
+
+    vec3 sky(vec3 rd){
+      float t=clamp(rd.y*.5+.5,0.,1.);
+      vec3 c=mix(vec3(.48,.68,.88),vec3(.08,.28,.56),pow(t,.65));
+      vec3 s=sunDirection();
+      vec3 sunCol=sunColor();
+      c += sunCol*pow(max(dot(rd,s),0.),500.)*2.2;
+      return c;
+    }
+
+    // Use exactly the same display transform for:
+    // 1) pure sky rays
+    // 2) sky seen through cloud holes
+    // 3) cloud + transmitted sky
+    vec3 displayTransform(vec3 linearColor){
+      vec3 c=vec3(1.0)-exp(-max(linearColor,vec3(0.0))*uExposure);
+      return pow(c,vec3(1.0/2.2));
+    }
+
+    float hgPhase(float mu,float g){
+      float gg=g*g;
+      float denom=max(1.0+gg-2.0*g*mu,0.0001);
+      return (1.0-gg)/(12.5663706*pow(denom,1.5));
+    }
+
+    struct LightResult{
+      float directT;
+      float phi;
+      float lightOD;
+    };
+
+    float phiBoundaryLight(vec3 p,vec3 lightDir,float H){
+      float weatherScaleM=max(uWeatherScaleKm*1000.0,1000.0);
+      float d=clamp(weatherScaleM*0.001,25.0,200.0);
+
+      float hL=sampleWeatherField(p.xz-vec2(d,0.0));
+      float hR=sampleWeatherField(p.xz+vec2(d,0.0));
+      float hD=sampleWeatherField(p.xz-vec2(0.0,d));
+      float hU=sampleWeatherField(p.xz+vec2(0.0,d));
+
+      float dHdx=(hR-hL)*H/max(2.0*d,1.0);
+      float dHdz=(hU-hD)*H/max(2.0*d,1.0);
+      vec3 topN=normalize(vec3(-dHdx,1.0,-dHdz));
+
+      float wrap=0.5;
+      float lit=clamp((dot(topN,lightDir)+wrap)/(1.0+wrap),0.0,1.0);
+      return mix(1.0,lit,clamp(uPhiBoundaryConfidence,0.0,1.0));
+    }
+
+    float evalMSCurve(float od,float directT){
+      float od2=od*od;
+      float od3=od2*od;
+      float ms=0.0;
+
+      if(uMSModel==1){
+        float poly=
+            uPolyC0
+          + uPolyC1*od
+          + uPolyC2*od2
+          + uPolyC3*od3;
+
+        ms=(1.0-directT)*uPolyGain*max(poly,0.0);
+      }
+      else if(uMSModel==2){
+        float p=
+            uExpC0
+          + uExpC1*od
+          + uExpC2*od2
+          + uExpC3*od3;
+
+        ms=(1.0-directT)*uExpPolyGain*exp(-max(p,0.0));
+      }
+
+      return min(max(ms,0.0),uMSCurveClamp);
+    }
+
+    LightResult traceLight(vec3 p,bool right,vec3 lightDir,float H){
+      LightResult r;
+      r.directT=1.0;
+      r.phi=0.0;
+      r.lightOD=0.0;
+
+      float ds=max(min(H*uLightProbe,500.0),1.0);
+      float traveled=0.0;
+      float extinctionSum=0.0;
+      float kappaODSum=0.0;
+      float TAbs=1.0;
+
+      bool needPhi=(uMSModel==0);
+
+      float srcConfidence=1.0;
+      float omega0=clamp(uPhiOmega0,0.0,0.99999);
+      float kappaScale=sqrt(max(3.0*(1.0-omega0),0.0));
+
+      if(needPhi){
+        // Source confidence is evaluated once at the current shading point,
+        // matching the cheap performance-oriented approximation in HPVolumeCloud.
+        float localH=clamp(p.y/H,0.0,1.0);
+        float weatherHere=sampleWeatherField(p.xz);
+        float bottomSoft=max(uBottomFadeEnd*mix(1.0,4.0,weatherHere),0.001);
+        float bottomH=localH+uPhiDepthBias;
+        float bottomConfidence=(uPhiDepthPow>0.0)
+          ? (1.0-exp(-max(bottomH,0.0)/bottomSoft*uPhiDepthPow))
+          : 1.0;
+        srcConfidence=phiBoundaryLight(p,lightDir,H)*bottomConfidence;
+      }
+
+      for(int j=0;j<MAX_LIGHT_STEPS;j++){
+        if(j>=uLightSteps) break;
+
+        float sampleDist=traveled+0.5*ds;
+        vec3 sp=p+lightDir*sampleDist;
+        if(sp.y>=H || sp.y<=0.0) break;
+
+        float rho=density(sp,right);
+
+        // Our normalized sigma_t is measured per one LayerHeight.
+        float sigmaTN=rho*uShadowStrength;
+        float dsN=ds/H;
+        float localOD=sigmaTN*dsN;
+
+        // Direct sun path.
+        extinctionSum += localOD;
+
+        if(needPhi){
+          // hp_phi_fwd source deposition and diffusion propagation.
+          float sigmaSN=sigmaTN*omega0;
+          float qSrc=sigmaSN*dsN;
+          float invD=sigmaTN;
+
+          float kappaStep=localOD*kappaScale;
+          float kappaToCenter=kappaODSum+0.5*kappaStep;
+          float propagation=exp(-kappaToCenter);
+
+          float msBuild=1.0-exp(-(extinctionSum-0.5*localOD)*max(uPhiMSBuild,0.0));
+
+          float rN=max(sampleDist/H,0.5*dsN);
+          float invR=1.0/max(rN,1e-4);
+
+          r.phi += TAbs*qSrc*invD*srcConfidence*msBuild*propagation*invR;
+
+          kappaODSum += kappaStep;
+
+          // Only true absorption removes diffuse energy.
+          TAbs *= exp(-localOD*(1.0-omega0));
+        }
+
+        traveled += ds;
+        ds *= uLightStepGrowth;
+      }
+
+      r.lightOD=extinctionSum;
+      r.directT=exp(-extinctionSum);
+
+      if(needPhi){
+        float phiScaled=r.phi*uPhiIntensity;
+        r.phi=(uPhiCompress>0.0)
+          ? (1.0-exp(-phiScaled*uPhiCompress))/uPhiCompress
+          : phiScaled;
+      }else{
+        r.phi=0.0;
+      }
+
+      return r;
+    }
+
+    void lightFieldBasis(out vec3 travelDir,out vec3 axisX,out vec3 axisY){
+      // travelDir points from the sun into the scene.
+      travelDir=-sunDirection();
+      vec3 ref=abs(travelDir.y)>.97 ? vec3(1,0,0) : vec3(0,1,0);
+      axisX=normalize(cross(ref,travelDir));
+      axisY=normalize(cross(travelDir,axisX));
+    }
+
+    bool lightFieldCloudSegment(vec3 ro,vec3 rd,float maxDist,out float t0,out float t1){
+      float H=max(uLayerHeight,1.0);
+      if(abs(rd.y)<1e-6){
+        if(ro.y>0.0 && ro.y<H){
+          t0=0.0; t1=maxDist; return true;
+        }
+        return false;
+      }
+      float a=(0.0-ro.y)/rd.y;
+      float b=(H-ro.y)/rd.y;
+      float en=min(a,b);
+      float ex=max(a,b);
+      t0=max(0.0,en);
+      t1=min(maxDist,ex);
+      return t1>t0;
+    }
+
+    vec3 buildLightFieldPixel(bool rightMap,vec2 localUV){
+      vec3 L,bx,by;
+      lightFieldBasis(L,bx,by);
+
+      float depthSpan=max(uShaftMapDepth,1000.0);
+      vec2 plane=(localUV-.5)*uShaftWorldSize;
+
+      // Start on the sun-facing side of the camera-centered light volume.
+      vec3 ro=uShaftMapCenter
+        + bx*plane.x
+        + by*plane.y
+        - L*(depthSpan*.5);
+
+      float s0,s1;
+      if(!lightFieldCloudSegment(ro,L,depthSpan,s0,s1)){
+        return vec3(1.0,1.0,0.0);
+      }
+
+      int steps=max(uShaftMapSteps,1);
+      float ds=(s1-s0)/float(steps);
+      float T=1.0;
+      float hitAccum=0.0;
+      float hitWeight=0.0;
+
+      float target=max(uShaftHitT,0.001);
+      float logTarget=log(target);
+      float width=max(uShaftHitWidth,0.01);
+
+      for(int i=0;i<MAX_SHAFT_MAP_STEPS;i++){
+        if(i>=steps) break;
+
+        float s=s0+(float(i)+.5)*ds;
+        vec3 p=ro+L*s;
+        float rho=density(p,rightMap);
+
+        float localOD=rho*(ds/max(uLayerHeight,1.0))*uShadowStrength;
+        float Tnext=T*exp(-localOD);
+
+        // Weight optical loss most strongly around the requested transmission threshold.
+        float Tmid=sqrt(max(T*Tnext,1e-8));
+        float logDistance=abs(log(max(Tmid,1e-5))-logTarget);
+        float thresholdWeight=exp(-logDistance/width);
+        float loss=max(T-Tnext,0.0);
+        float w=loss*thresholdWeight;
+
+        float depthN=clamp(s/depthSpan,0.0,1.0);
+        hitAccum+=depthN*w;
+        hitWeight+=w;
+
+        T=Tnext;
+      }
+
+      float hitDepth=hitWeight>1e-6 ? hitAccum/hitWeight : 1.0;
+
+      // A hit only becomes trustworthy when the integrated ray actually approaches /
+      // passes the selected transmission threshold.
+      float reached=1.0-smoothstep(target,target+max(uShaftHitWidth,.01),T);
+      float confidence=reached*smoothstep(.0005,.025,hitWeight);
+
+      // R: total transmission, G: weighted hit depth, B: confidence.
+      return vec3(clamp(T,0.0,1.0),clamp(hitDepth,0.0,1.0),clamp(confidence,0.0,1.0));
+    }
+
+    float sampleAirSunVisibility(vec3 p,bool rightMap){
+      if(uShaftEnabled==0) return 1.0;
+
+      vec3 L,bx,by;
+      lightFieldBasis(L,bx,by);
+
+      vec3 rel=p-uShaftMapCenter;
+      vec2 localUV=vec2(
+        dot(rel,bx)/uShaftWorldSize+.5,
+        dot(rel,by)/uShaftWorldSize+.5
+      );
+      float depthN=dot(rel,L)/uShaftMapDepth+.5;
+
+      if(localUV.x<=0.0 || localUV.x>=1.0 ||
+         localUV.y<=0.0 || localUV.y>=1.0 ||
+         depthN<=0.0 || depthN>=1.0) return 1.0;
+
+      float res=max(uShaftMapRes,2.0);
+      float px=localUV.x*(res-1.0)+.5+(rightMap?res:0.0);
+      float py=localUV.y*(res-1.0)+.5;
+      vec2 atlasUV=vec2(px/(2.0*res),py/res);
+
+      vec3 field=texture(uLightFieldTex,atlasUV).rgb;
+      float totalT=field.r;
+      float hitDepth=field.g;
+      float confidence=field.b;
+
+      float soft=max(uShaftDepthSoftness/uShaftMapDepth,1.0/res);
+      float beforeHit=1.0-smoothstep(hitDepth-soft,hitDepth+soft,depthN);
+
+      // If the weighted hit is unreliable, do not invent a cloud shadow.
+      float shadowedT=mix(1.0,totalT,confidence);
+
+      // Sun-facing side of the weighted cloud hit: full sun.
+      // Behind the cloud hit: use the cloud ray's integrated transmission.
+      float visibility=mix(shadowedT,1.0,beforeHit);
+
+      // Camera-centered field fades out laterally, reverting to unshadowed sun outside.
+      vec2 edge=smoothstep(vec2(0.0),vec2(.06),localUV)
+               *smoothstep(vec2(0.0),vec2(.06),vec2(1.0)-localUV);
+      float edgeFade=edge.x*edge.y;
+
+      return mix(1.0,clamp(visibility,0.0,1.0),edgeFade);
+    }
+
+    float airDensityAt(vec3 p){
+      // Simple aerosol/molecular proxy. This is intentionally independent of cloud density.
+      float y=max(p.y,0.0);
+      return exp(-y/max(uAirScaleHeight,1.0));
+    }
+
+    void integrateAirSegment(
+      vec3 p,
+      vec3 rd,
+      vec3 sun,
+      bool rightMap,
+      float ds,
+      inout vec3 acc,
+      inout float tr
+    ){
+      if(uShaftEnabled==0 || uAirScatterStrength<=0.0 || ds<=0.0 || tr<=0.001) return;
+
+      float rhoAir=airDensityAt(p);
+      float tauAir=rhoAir*uAirExtinction*(ds/1000.0);
+      float aAir=1.0-exp(-tauAir);
+      if(aAir<=1e-6) return;
+
+      float sunVis=sampleAirSunVisibility(p,rightMap);
+
+      // Air gets its own phase function; it is not the cloud HG term.
+      float muAir=clamp(dot(rd,sun),-1.0,1.0);
+      float phaseAir=hgPhase(muAir,uAirPhaseG);
+      float phaseNorm=clamp(phaseAir*12.5663706,0.05,8.0);
+
+      vec3 airSource=sunColor()*(uAirScatterStrength*sunVis*phaseNorm);
+
+      acc+=tr*aAir*airSource;
+      tr*=1.0-aAir;
+    }
+
+    void renderLightFieldPass(){
+      float res=max(uShaftMapRes,1.0);
+      bool rightMap=gl_FragCoord.x>=res;
+      float localX=rightMap ? gl_FragCoord.x-res : gl_FragCoord.x;
+      vec2 localUV=vec2(localX,gl_FragCoord.y)/res;
+      vec3 field=buildLightFieldPixel(rightMap,localUV);
+      outColor=vec4(field,1.0);
+    }
+
+    void main(){
+      if(uPassMode==1){
+        renderLightFieldPass();
+        return;
+      }
+
+      bool right = gl_FragCoord.x >= uResolution.x*.5;
+      vec2 halfR=vec2(uResolution.x*.5,uResolution.y);
+      vec2 local=vec2(right?gl_FragCoord.x-halfR.x:gl_FragCoord.x, gl_FragCoord.y);
+      vec2 uv=(local*2.-halfR)/halfR.y;
+
+      float cy=cos(uCamYaw), sy=sin(uCamYaw), cp=cos(uCamPitch), sp=sin(uCamPitch);
+      vec3 fw=normalize(vec3(sy*cp, sp, cy*cp));
+      vec3 rt=normalize(cross(fw,vec3(0,1,0)));
+      vec3 up=normalize(cross(rt,fw));
+      vec3 ro=uCamPos;
+      vec3 rd=normalize(fw + uv.x*rt*.92 + uv.y*up*.92);
+      vec3 bg=sky(rd);
+
+      float t0,t1;
+      if(!slab(ro,rd,uLayerHeight,t0,t1)){
+        outColor=vec4(displayTransform(bg),1.0);
+        return;
+      }
+
+      float H=max(uLayerHeight,1.), span=t1-t0;
+
+      // Detailed region has a strict world-space sampling budget.
+      float detailBudget=max(uMaxWorldStep,1.0)*float(max(uMaxSteps,1));
+      float detailEnd=min(t1,t0+detailBudget);
+      float detailSpan=max(detailEnd-t0,0.0);
+
+      int activeSteps=uMaxSteps;
+      if(uAdaptiveSteps==1){
+        activeSteps=int(clamp(ceil(float(uMaxSteps)*clamp(detailSpan/(H*3.2),.2,1.)),12.,float(uMaxSteps)));
+      }
+
+      int stepsFromStepLimit=int(ceil(detailSpan/max(uMaxWorldStep,1.0)));
+      activeSteps=max(activeSteps,stepsFromStepLimit);
+      activeSteps=int(clamp(float(activeSteps),12.0,float(uMaxSteps)));
+
+      float dt=detailSpan/float(max(activeSteps,1));
+
+      // Near the horizon, disable most stochastic start jitter instead of magnifying it.
+      vec2 lp=floor(local);
+      float jitter=fract(sin(dot(lp,vec2(12.9898,78.233)))*43758.5453)-.5;
+      float grazingJitter=smoothstep(0.006,0.055,abs(rd.y));
+      float jitterDist=min(dt*0.35,uMaxWorldStep*0.35)*grazingJitter;
+      float t=t0+dt*0.5+jitter*jitterDist;
+      float tr=1.;
+      vec3 acc=vec3(0);
+      vec3 sun=sunDirection();
+
+      for(int i=0;i<MAX_STEPS;i++){
+        if(i>=activeSteps || t>detailEnd || tr<.02) break;
+        vec3 p=ro+rd*t;
+
+        if(uEmptySkip==1){
+          float c=coarse(p,right);
+          if(c<0.){
+            float skipDs=min(
+              dt*mix(2.,3.3,clamp(-c*3.,0.,1.)),
+              max(detailEnd-t,0.0)
+            );
+
+            // Even if cloud density is skipped, AIR scattering still exists.
+            vec3 airP=ro+rd*(t+skipDs*.5);
+            integrateAirSegment(airP,rd,sun,right,skipDs,acc,tr);
+
+            t+=skipDs;
+            continue;
+          }
+        }
+
+        // AIR is integrated independently of cloud occupancy.
+        integrateAirSegment(p,rd,sun,right,dt,acc,tr);
+
+        float d=density(p,right);
+        if(d>.002){
+          LightResult light=traceLight(p,right,sun,H);
+          float lt=light.directT;
+
+          // Directional phase is an ADDITIVE scattering lobe.
+          // It no longer multiplies the direct-transmission term.
+          float mu=clamp(dot(rd,sun),-1.0,1.0);
+          float phase=hgPhase(mu,uPhaseG);
+
+          // Remove the isotropic baseline so g=0 does not inject a constant phase light.
+          const float INV_4PI=0.0795774715;
+          float phaseExcess=max(phase-INV_4PI,0.0);
+          float phaseLobe=clamp(phaseExcess*6.0,0.0,2.2);
+
+          float hNorm=clamp(p.y/H,0.0,1.0);
+          vec3 ambientCol=mix(vec3(.20,.27,.36),vec3(.42,.52,.64),hNorm);
+          float sunLow=1.0-clamp((uSunElevation+5.0)/95.0,0.0,1.0);
+          ambientCol=mix(ambientCol,ambientCol*vec3(1.04,0.99,0.95),sunLow*0.20);
+          vec3 directCol=sunColor();
+
+          // Powder remains attached to the base direct/body illumination only.
+          float powder=1.0-exp(-d*uPowderStrength);
+          float powderGain=mix(1.0,0.70+0.65*powder,uPowderAmount);
+
+          float msLight=(uMSModel==0)
+            ? light.phi
+            : evalMSCurve(light.lightOD,light.directT);
+
+          if(uMSModel==0){
+            float shadowMask=mix(
+              uPhiShadowFloor,
+              1.0,
+              pow(clamp(light.directT,0.0,1.0),uPhiShadowPreserve)
+            );
+            msLight*=shadowMask;
+          }
+
+          vec3 directBase =
+              directCol*(uDirectStrength*lt*powderGain);
+
+          // Additive HG lobe. It still needs incident sunlight (lt),
+          // but it does not modulate or redefine the direct term.
+          vec3 phaseAdd =
+              directCol*(uPhaseStrength*lt*phaseLobe);
+
+          vec3 msCol=directCol*msLight;
+
+          // Cloud lighting contains only cloud-medium terms.
+          // Aerial shafts are integrated independently in the surrounding air.
+          vec3 cc =
+              ambientCol*uAmbientStrength
+            + directBase
+            + phaseAdd
+            + msCol;
+
+          // Primary ray uses the same discrete-density / segment-length rule:
+          // The outer alpha below is (1 - view transmittance), so phi is injected
+          // exactly as an additive diffuse field scattered by the current view segment.
+          // dTau_view = rho * dt/H * extinction.
+          float a=1.-exp(-d*(dt/H)*uExtinction);
+          acc += tr*a*cc;
+          tr *= 1.-a;
+        }
+        t += dt;
+      }
+
+      // Grazing-ray tail: after the detailed fixed-step budget is exhausted,
+      // integrate the remaining distance with a few low-frequency samples.
+      // This keeps Max March Step meaningful and removes the horizon quality-regime band.
+      float tailSpan=max(t1-detailEnd,0.0);
+      if(tailSpan>0.0 && tr>0.02 && uHorizonTailSteps>0){
+        int tailSteps=min(uHorizonTailSteps,MAX_HORIZON_TAIL);
+        float tailDs=tailSpan/float(max(tailSteps,1));
+        float tailTau=0.0;
+        float densityMean=0.0;
+
+        for(int j=0;j<MAX_HORIZON_TAIL;j++){
+          if(j>=tailSteps) break;
+          float tj=detailEnd+(float(j)+0.5)*tailDs;
+          vec3 pp=ro+rd*tj;
+          float fd=farDensityApprox(pp,right);
+          densityMean+=fd;
+          tailTau+=fd*(tailDs/H)*uExtinction;
+        }
+
+        densityMean/=float(max(tailSteps,1));
+        float tailA=1.0-exp(-tailTau);
+
+        // Far field intentionally uses broad lighting only; high-frequency shadowing
+        // would alias at these footprints and is visually meaningless near the horizon.
+        float hRep=clamp((ro.y+rd.y*(detailEnd+tailSpan*.5))/H,0.0,1.0);
+        vec3 farAmbient=mix(vec3(.20,.27,.36),vec3(.42,.52,.64),hRep)*uAmbientStrength;
+        vec3 farSun=sunColor()*(0.10+0.12*densityMean)*uDirectStrength;
+        vec3 farCloudCol=farAmbient+farSun;
+
+        acc+=tr*tailA*farCloudCol;
+        tr*=1.0-tailA;
+      }
+
+      vec3 col=acc+tr*bg;
+      outColor=vec4(displayTransform(col),1.0);
+    }`;
+
+    function compile(type,src){
+      const s=gl.createShader(type);
+      gl.shaderSource(s,src);
+      gl.compileShader(s);
+      if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){
+        const numbered=src.split('\n').map((line,i)=>String(i+1).padStart(3,'0')+': '+line).join('\n');
+        throw Error(gl.getShaderInfoLog(s)+'\n\nShader source:\n'+numbered);
+      }
+      return s;
+    }
+
+    const prog=gl.createProgram();
+    gl.attachShader(prog,compile(gl.VERTEX_SHADER,VS));
+    gl.attachShader(prog,compile(gl.FRAGMENT_SHADER,FS));
+    gl.linkProgram(prog);
+    if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(prog));
+    gl.bindVertexArray(gl.createVertexArray());
+
+    const un={};
+    [
+      'uResolution','uNoise','uWorleyTex','uLightFieldTex','uTime','uLayerHeight','uVolumeWidth','uUpperDensity','uDistBase','uDistTransition','uCoverage',
+      'uProfileUpper','uProfileBase','uProfileTransition','uProfileGain','uProfileBottomFadeEnd','uProfileTopFadeStart','uPersistence','uWorley','uErosion',
+      'uBottomFadeEnd','uTopFadeStart','uThresholdBase','uCoverageScale','uThresholdWidth','uDomainXZ','uDomainY','uFbmFreq0','uFbmFreq1','uFbmFreq2','uFbmFreq3','uWorleyFreq',
+      'uWorleyShapeWeight','uErosionFreq','uErosionAmp','uCoarseMargin','uDensityGain','uDensityBias','uExtinction','uShadowStrength','uLightProbe','uLightStepGrowth','uViewDistance','uLightSteps','uAmbientStrength','uDirectStrength','uPhaseG','uPhaseStrength','uPowderStrength','uPowderAmount','uExposure','uSunAzimuth','uSunElevation','uPhiIntensity','uPhiOmega0','uPhiMSBuild','uPhiCompress','uPhiDepthPow','uPhiDepthBias','uPhiBoundaryConfidence','uPhiShadowFloor','uPhiShadowPreserve','uPolyGain','uPolyC0','uPolyC1','uPolyC2','uPolyC3','uExpPolyGain','uExpC0','uExpC1','uExpC2','uExpC3','uMSCurveClamp','uMSModel','uWeatherScaleKm','uWeatherInfluence','uWeatherWindX','uWeatherWindZ','uDetailDriftX','uDetailDriftZ',
+      'uCamPos','uCamYaw','uCamPitch','uMaxWorldStep','uViewSoftClip','uShaftMapCenter','uShaftMapRes','uShaftWorldSize','uShaftMapDepth','uShaftHitT','uShaftHitWidth','uShaftDepthSoftness','uAirScatterStrength','uAirExtinction','uAirScaleHeight','uAirPhaseG','uMaxSteps','uProfileMode','uAdaptiveSteps','uEmptySkip','uHorizonTailSteps','uPassMode','uShaftMapSteps','uShaftEnabled'
+    ].forEach(n=>un[n]=gl.getUniformLocation(prog,n));
+
+    function hash3(x,y,z){
+      let n=(x*73856093)^(y*19349663)^(z*83492791);
+      n=(n^(n>>>13))*1274126177;
+      return ((n^(n>>>16))>>>0)/4294967295;
+    }
+
+    function makeNoise3D(N){
+      const a=new Uint8Array(N*N*N*4);
+      for(let z=0;z<N;z++)for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+        const i=((z*N+y)*N+x)*4, v=Math.floor(hash3(x,y,z)*255);
+        a[i]=a[i+1]=a[i+2]=v; a[i+3]=255;
+      }
+      return a;
+    }
+
+    function makeWorley3D(N,cells){
+      const a=new Uint8Array(N*N*N*4);
+      const seed=(cx,cy,cz)=>[
+        hash3((cx+cells)%cells,(cy+cells)%cells,(cz+cells)%cells),
+        hash3((cx+cells+17)%cells,(cy+cells+29)%cells,(cz+cells+43)%cells),
+        hash3((cx+cells+53)%cells,(cy+cells+71)%cells,(cz+cells+89)%cells)
+      ];
+      for(let z=0;z<N;z++)for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+        let px=x/N*cells, py=y/N*cells, pz=z/N*cells;
+        let cx=Math.floor(px), cy=Math.floor(py), cz=Math.floor(pz), md=99;
+        for(let dz=-1;dz<=1;dz++)for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+          const s=seed(cx+dx,cy+dy,cz+dz);
+          const sx=cx+dx+s[0], sy=cy+dy+s[1], sz=cz+dz+s[2];
+          const dd=(sx-px)*(sx-px)+(sy-py)*(sy-py)+(sz-pz)*(sz-pz);
+          md=Math.min(md,dd);
+        }
+        const v=Math.max(0,Math.min(1,1-Math.sqrt(md)/1.2));
+        const i=((z*N+y)*N+x)*4, q=Math.floor(v*255);
+        a[i]=a[i+1]=a[i+2]=q; a[i+3]=255;
+      }
+      return a;
+    }
+
+    function tex3D(data,N){
+      const t=gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_3D,t);
+      gl.texParameteri(gl.TEXTURE_3D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_3D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_3D,gl.TEXTURE_WRAP_S,gl.REPEAT);
+      gl.texParameteri(gl.TEXTURE_3D,gl.TEXTURE_WRAP_T,gl.REPEAT);
+      gl.texParameteri(gl.TEXTURE_3D,gl.TEXTURE_WRAP_R,gl.REPEAT);
+      gl.texImage3D(gl.TEXTURE_3D,0,gl.RGBA8,N,N,N,0,gl.RGBA,gl.UNSIGNED_BYTE,data);
+      return t;
+    }
+
+    const noiseTex=tex3D(makeNoise3D(32),32);
+    const worleyTex=tex3D(makeWorley3D(24,4),24);
+
+    const lightFieldTex=gl.createTexture();
+    const lightFieldFbo=gl.createFramebuffer();
+    let lightFieldAllocatedRes=0;
+
+    function ensureLightFieldTarget(res){
+      res=Math.max(16,Math.round(res));
+      if(lightFieldAllocatedRes===res) return;
+
+      gl.bindTexture(gl.TEXTURE_2D,lightFieldTex);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,res*2,res,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER,lightFieldFbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,lightFieldTex,0);
+      const fboStatus=gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+      if(fboStatus!==gl.FRAMEBUFFER_COMPLETE) throw Error('Light Field FBO incomplete: '+fboStatus);
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+      gl.bindTexture(gl.TEXTURE_2D,null);
+      lightFieldAllocatedRes=res;
+    }
+
+    const defaults = {
+      upperDensity:.45, distBase:.22, distTransition:.04, coverage:.89,
+      profileUpper:.38, profileBase:.13, profileTransition:.14, profileGain:1.50,
+      profileBottomFadeEnd:.30, profileTopFadeStart:.98,
+      layerHeight:10000, volumeWidth:7.00,
+      persistence:.41, worley:.26, erosion:.00,
+      renderScale:.25, steps:128, maxWorldStep:400, horizonTailSteps:4, viewSoftClip:30000,
+      shaftMapRes:256, shaftWorldSize:80000, shaftMapDepth:110000, shaftMapSteps:12,
+      shaftHitT:.33, shaftHitWidth:.18, shaftDepthSoftness:1800,
+      airScatterStrength:.70, airExtinction:.035, airScaleHeight:8000, airPhaseG:.40,
+      bottomFadeEnd:.30, topFadeStart:.86, thresholdBase:.77, coverageScale:.37, thresholdWidth:.09,
+      domainXZ:6.6, domainY:2.35, fbmFreq0:.065, fbmFreq1:.105, fbmFreq2:.380, fbmFreq3:.680, worleyFreq:.200, worleyShapeWeight:.68,
+      erosionFreq:.46, erosionAmp:.32, coarseMargin:.22,
+      densityGain:3.00, densityBias:-0.03, extinction:10.0, shadowStrength:8.0, lightSteps:10, lightProbe:.040, lightStepGrowth:1.35,
+      ambientStrength:1.20, directStrength:1.30, sunAzimuth:360, sunElevation:13, phaseG:.70, phaseStrength:.45, powderStrength:1.95, powderAmount:.32, exposure:1.55,
+      phiIntensity:.25, phiOmega0:.981, phiMSBuild:.20, phiCompress:1.90, phiDepthPow:.10, phiDepthBias:-.04, phiBoundaryConfidence:.60,
+      phiShadowFloor:.34, phiShadowPreserve:.50,
+      polyGain:1.0, polyC0:.05079, polyC1:.005513, polyC2:-.001675, polyC3:.0000803,
+      expPolyGain:.060, expC0:.17532, expC1:-.110943, expC2:.030531, expC3:-.0009886, msCurveClamp:.35,
+      weatherScaleKm:180, weatherInfluence:.30, weatherWindX:12, weatherWindZ:5, detailDriftX:.028, detailDriftZ:.015,
+      moveSpeed:640, boost:3.2, lookSpeed:.0055, viewDistance:100000, flightSpeed:720, flightTurnRate:1.10, cruiseAltitude:1700, altitudeResponse:.85, maxClimbRate:650
+    };
+
+    const p = {...defaults};
+    const fmt = {
+      upperDensity:v=>v.toFixed(2), distBase:v=>v.toFixed(2), distTransition:v=>v.toFixed(2), coverage:v=>v.toFixed(2),
+      profileUpper:v=>v.toFixed(2), profileBase:v=>v.toFixed(2), profileTransition:v=>v.toFixed(2), profileGain:v=>v.toFixed(2),
+      profileBottomFadeEnd:v=>v.toFixed(2), profileTopFadeStart:v=>v.toFixed(2),
+      layerHeight:v=>Math.round(v)+' m', volumeWidth:v=>v.toFixed(2)+'×',
+      persistence:v=>v.toFixed(2), worley:v=>v.toFixed(2), erosion:v=>v.toFixed(2),
+      renderScale:v=>Math.round(v*100)+'%', steps:v=>String(Math.round(v)), maxWorldStep:v=>Math.round(v)+' m', horizonTailSteps:v=>String(Math.round(v)), viewSoftClip:v=>(v/1000).toFixed(1)+' km',
+      shaftMapRes:v=>Math.round(v)+'² ×2 atlas', shaftWorldSize:v=>(v/1000).toFixed(0)+' km', shaftMapDepth:v=>(v/1000).toFixed(0)+' km', shaftMapSteps:v=>String(Math.round(v)), shaftHitT:v=>v.toFixed(2), shaftHitWidth:v=>v.toFixed(2), shaftDepthSoftness:v=>Math.round(v)+' m',
+      airScatterStrength:v=>v.toFixed(2), airExtinction:v=>v.toFixed(3)+' /km', airScaleHeight:v=>(v/1000).toFixed(1)+' km', airPhaseG:v=>v.toFixed(2),
+      bottomFadeEnd:v=>v.toFixed(2), topFadeStart:v=>v.toFixed(2), thresholdBase:v=>v.toFixed(2), coverageScale:v=>v.toFixed(2), thresholdWidth:v=>v.toFixed(2),
+      domainXZ:v=>v.toFixed(1), domainY:v=>v.toFixed(2), fbmFreq0:v=>v.toFixed(3), fbmFreq1:v=>v.toFixed(3), fbmFreq2:v=>v.toFixed(3), fbmFreq3:v=>v.toFixed(3), worleyFreq:v=>v.toFixed(3), worleyShapeWeight:v=>v.toFixed(2),
+      erosionFreq:v=>v.toFixed(2), erosionAmp:v=>v.toFixed(2), coarseMargin:v=>v.toFixed(2),
+      densityGain:v=>v.toFixed(2), densityBias:v=>v.toFixed(2), extinction:v=>v.toFixed(1), shadowStrength:v=>v.toFixed(2), lightSteps:v=>String(Math.round(v)), lightProbe:v=>v.toFixed(3)+' H', lightStepGrowth:v=>v.toFixed(2)+'×', ambientStrength:v=>v.toFixed(2), directStrength:v=>v.toFixed(2), sunAzimuth:v=>Math.round(v)+'°', sunElevation:v=>Math.round(v)+'°', phaseG:v=>v.toFixed(2), phaseStrength:v=>v.toFixed(2), powderStrength:v=>v.toFixed(2), powderAmount:v=>v.toFixed(2), exposure:v=>v.toFixed(2),
+      phiIntensity:v=>v.toFixed(2), phiOmega0:v=>v.toFixed(4), phiMSBuild:v=>v.toFixed(2), phiCompress:v=>v.toFixed(2), phiDepthPow:v=>v.toFixed(2), phiDepthBias:v=>v.toFixed(2), phiBoundaryConfidence:v=>v.toFixed(2),
+      phiShadowFloor:v=>v.toFixed(2), phiShadowPreserve:v=>v.toFixed(2),
+      polyGain:v=>v.toFixed(2), polyC0:v=>v.toFixed(4), polyC1:v=>v.toFixed(4), polyC2:v=>v.toFixed(5), polyC3:v=>v.toFixed(6),
+      expPolyGain:v=>v.toFixed(3), expC0:v=>v.toFixed(4), expC1:v=>v.toFixed(4), expC2:v=>v.toFixed(5), expC3:v=>v.toFixed(6), msCurveClamp:v=>v.toFixed(2),
+      weatherScaleKm:v=>Math.round(v)+' km', weatherInfluence:v=>v.toFixed(2), weatherWindX:v=>Math.round(v)+' m/s', weatherWindZ:v=>Math.round(v)+' m/s', detailDriftX:v=>v.toFixed(3), detailDriftZ:v=>v.toFixed(3),
+      moveSpeed:v=>Math.round(v)+' m/s', boost:v=>v.toFixed(1)+'×', lookSpeed:v=>v.toFixed(4), viewDistance:v=>(v/1000).toFixed(0)+' km', flightSpeed:v=>Math.round(v)+' m/s', flightTurnRate:v=>v.toFixed(2)+' rad/s', cruiseAltitude:v=>Math.round(v)+' m', altitudeResponse:v=>v.toFixed(2), maxClimbRate:v=>Math.round(v)+' m/s'
+    };
+
+    let cam = {x:0, y:1150, z:-5200, yaw:0.0, pitch:0.06};
+
+    function resetCam(){
+      cam.x = 0;
+      cam.y = p.layerHeight * 0.58;
+      cam.z = -p.layerHeight * 2.6;
+      cam.yaw = 0.0;
+      cam.pitch = 0.04;
+    }
+    resetCam();
+
+    function smooth(a,b,x){
+      let t=Math.max(0,Math.min(1,(x-a)/(b-a)));
+      return t*t*(3-2*t);
+    }
+    function L(h){
+      return 1 + (p.upperDensity-1)*smooth(p.distBase,Math.min(.98,p.distBase+p.distTransition),h);
+    }
+    function R(h){
+      return Math.max(0,Math.min(1.5,(1+(p.profileUpper-1)*smooth(p.profileBase,Math.min(.98,p.profileBase+p.profileTransition),h))*p.profileGain));
+    }
+    function curveRMS(){
+      let e=0,n=200;
+      for(let i=0;i<n;i++){ let h=(i+.5)/n, d=L(h)-R(h); e+=d*d; }
+      return Math.sqrt(e/n);
+    }
+
+    function plot(){
+      const c=document.getElementById('plot');
+      const x=c.getContext('2d');
+      const w=c.width,h=c.height;
+      x.clearRect(0,0,w,h);
+      x.strokeStyle='rgba(255,255,255,.1)';
+      x.lineWidth=1;
+      for(let i=1;i<4;i++){ let yy=h*i/4; x.beginPath(); x.moveTo(0,yy); x.lineTo(w,yy); x.stroke(); }
+      function draw(fn,dash,color){
+        x.save(); x.strokeStyle=color; x.lineWidth=2; x.setLineDash(dash); x.beginPath();
+        for(let i=0;i<w;i++){
+          let q=i/(w-1), yy=h-8-(Math.min(1.1,fn(q))/1.1)*(h-16);
+          if(i) x.lineTo(i,yy); else x.moveTo(i,yy);
+        }
+        x.stroke(); x.restore();
+      }
+      draw(L,[],'rgba(90,176,255,1)');
+      draw(R,[5,4],'rgba(255,198,109,1)');
+      let e=curveRMS(), re=document.getElementById('rms');
+      re.textContent=e.toFixed(4);
+      re.style.color=e<.003?'var(--good)':e<.03?'var(--warn)':'#ff8b9d';
+      document.getElementById('fitState').textContent=e<.003?'几乎等价':e<.03?'接近':'明显不同';
+    }
+
+    function sync(){
+      for(const id in fmt){
+        const e=document.getElementById(id);
+        if(!e) continue;
+        e.value=p[id];
+        e.parentElement.querySelector('output').textContent=fmt[id](p[id]);
+      }
+      plot();
+    }
+    for(const id in fmt){
+      const e=document.getElementById(id);
+      if(!e) continue;
+      e.addEventListener('input',()=>{
+        p[id]=(id==='steps'||id==='lightSteps'||id==='horizonTailSteps'||id==='shaftMapRes'||id==='shaftMapSteps')?parseInt(e.value,10):parseFloat(e.value);
+        e.parentElement.querySelector('output').textContent=fmt[id](p[id]);
+        plot();
+      });
+    }
+
+    const controlPanel=document.getElementById('controlPanel');
+    const togglePanelButton=document.getElementById('togglePanel');
+    function setPanelHidden(hidden){
+      controlPanel.classList.toggle('collapsed',hidden);
+      togglePanelButton.textContent=hidden?'显示面板 [H]':'隐藏面板 [H]';
+      togglePanelButton.setAttribute('aria-expanded',String(!hidden));
+    }
+    togglePanelButton.addEventListener('click',()=>setPanelHidden(!controlPanel.classList.contains('collapsed')));
+    window.addEventListener('keydown',(e)=>{
+      if((e.key==='h'||e.key==='H') && !e.ctrlKey && !e.metaKey && !e.altKey){
+        const tag=(document.activeElement&&document.activeElement.tagName)||'';
+        if(tag!=='INPUT' && tag!=='SELECT' && tag!=='TEXTAREA'){
+          e.preventDefault();
+          setPanelHidden(!controlPanel.classList.contains('collapsed'));
+        }
+      }
+    });
+
+    document.getElementById('fit').onclick=()=>{
+      p.profileUpper=p.upperDensity;
+      p.profileBase=p.distBase;
+      p.profileTransition=p.distTransition;
+      p.profileGain=1;
+      p.profileBottomFadeEnd=p.bottomFadeEnd;
+      p.profileTopFadeStart=p.topFadeStart;
+      sync();
+    };
+
+    document.getElementById('preset').onclick=()=>{
+      Object.assign(p, defaults);
+      document.getElementById('adaptiveSteps').checked=true;
+      document.getElementById('emptySkip').checked=true;
+      document.getElementById('autoFlight').checked=false;
+      document.getElementById('mouseSteer').checked=true;
+      document.getElementById('fixedAltitude').checked=false;
+      document.getElementById('shaftEnabled').checked=true;
+      document.getElementById('msModel').value='0';
+      throttle=1.0;
+      resetCam();
+      sync();
+    };
+
+    document.getElementById('mode').onchange=e=>{
+      document.getElementById('rmode').textContent=e.target.value==='0'?'Profile → Threshold':'Profile × Density';
+    };
+
+    document.getElementById('resetCam').onclick=()=>resetCam();
+
+    document.getElementById('setCruiseAltitude').onclick=()=>{
+      p.cruiseAltitude=cam.y;
+      const e=document.getElementById('cruiseAltitude');
+      e.value=p.cruiseAltitude;
+      e.parentElement.querySelector('output').textContent=fmt.cruiseAltitude(p.cruiseAltitude);
+    };
+
+    let dragging=false, lx=0, ly=0, steerX=0, steerY=0, throttle=1.0;
+    function updateSteerFromPointer(e){
+      const r=canvas.getBoundingClientRect();
+      if(r.width<=0 || r.height<=0) return;
+      steerX=((e.clientX-r.left)/r.width)*2.0-1.0;
+      steerY=((e.clientY-r.top)/r.height)*2.0-1.0;
+      steerX=Math.max(-1,Math.min(1,steerX));
+      steerY=Math.max(-1,Math.min(1,steerY));
+    }
+    canvas.onpointerdown=e=>{
+      dragging=true; lx=e.clientX; ly=e.clientY;
+      updateSteerFromPointer(e);
+      canvas.setPointerCapture(e.pointerId);
+    };
+    canvas.onpointerup=()=>dragging=false;
+    canvas.onpointercancel=()=>dragging=false;
+    canvas.onpointermove=e=>{
+      updateSteerFromPointer(e);
+      if(!dragging || document.getElementById('autoFlight').checked) return;
+      let dx=e.clientX-lx, dy=e.clientY-ly;
+      lx=e.clientX; ly=e.clientY;
+      cam.yaw += dx*p.lookSpeed;
+      cam.pitch = Math.max(-1.4, Math.min(1.4, cam.pitch + dy*p.lookSpeed*0.85));
+    };
+    canvas.onpointerleave=()=>{ steerX=0; steerY=0; };
+
+    const keys={};
+    window.addEventListener('keydown',e=>{
+      keys[e.key.toLowerCase()] = true;
+      if(e.key.toLowerCase()==='g'){ e.preventDefault(); resetCam(); }
+    });
+    window.addEventListener('keyup',e=>{ keys[e.key.toLowerCase()] = false; });
+
+    function updateCamera(dt){
+      const cp=Math.cos(cam.pitch), sp=Math.sin(cam.pitch);
+      const fwdX=Math.sin(cam.yaw)*cp;
+      const fwdY=sp;
+      const fwdZ=Math.cos(cam.yaw)*cp;
+      const rightX=-Math.cos(cam.yaw);
+      const rightZ=Math.sin(cam.yaw);
+
+      const autoFlight=document.getElementById('autoFlight').checked;
+      const mouseSteer=document.getElementById('mouseSteer').checked;
+
+      if(autoFlight){
+        // War Thunder-like mouse steering + continuous forward cruise.
+        if(keys['w']) throttle=Math.min(2.0, throttle + dt*0.70);
+        if(keys['s']) throttle=Math.max(0.25, throttle - dt*0.70);
+
+        let sx=0, sy=0;
+        if(mouseSteer){
+          const dead=0.08;
+          sx=Math.abs(steerX)>dead ? (Math.abs(steerX)-dead)/(1.0-dead)*Math.sign(steerX) : 0;
+          sy=Math.abs(steerY)>dead ? (Math.abs(steerY)-dead)/(1.0-dead)*Math.sign(steerY) : 0;
+        }
+        // Keyboard gives additional trim.
+        sx += (keys['d']?0.50:0) - (keys['a']?0.50:0);
+        sy += (keys['x']?0.35:0) - (keys['z']?0.35:0);
+
+        cam.yaw += sx * p.flightTurnRate * dt;
+        cam.pitch = Math.max(-1.35, Math.min(1.35, cam.pitch + sy * p.flightTurnRate * 0.75 * dt));
+
+        const speed=p.flightSpeed * throttle * (keys['shift'] ? p.boost : 1.0);
+        const holdAltitude=document.getElementById('fixedAltitude').checked;
+
+        if(holdAltitude){
+          // Fixed-height cruise: preserve horizontal forward motion, while a smooth
+          // vertical controller maintains the target world-space altitude.
+          const horizontalLen=Math.hypot(fwdX,fwdZ);
+          const hx=horizontalLen>1e-5 ? fwdX/horizontalLen : 0;
+          const hz=horizontalLen>1e-5 ? fwdZ/horizontalLen : 1;
+
+          cam.x += hx*speed*dt;
+          cam.z += hz*speed*dt;
+
+          // Q/E shifts the held target altitude rather than directly moving the camera.
+          const targetAdjust=p.moveSpeed*0.55*(keys['shift'] ? p.boost : 1.0);
+          if(keys['e'] || keys[' ']) p.cruiseAltitude += targetAdjust*dt;
+          if(keys['q'] || keys['c']) p.cruiseAltitude -= targetAdjust*dt;
+
+          // First-order altitude hold with climb-rate limiting.
+          const altitudeError=p.cruiseAltitude-cam.y;
+          const desiredVy=altitudeError*p.altitudeResponse;
+          const vy=Math.max(-p.maxClimbRate,Math.min(p.maxClimbRate,desiredVy));
+          cam.y += vy*dt;
+
+          // Keep slider/output synchronized while Q/E changes the target.
+          const cruiseEl=document.getElementById('cruiseAltitude');
+          if(Math.abs(parseFloat(cruiseEl.value)-p.cruiseAltitude)>1){
+            cruiseEl.value=Math.max(parseFloat(cruiseEl.min),Math.min(parseFloat(cruiseEl.max),p.cruiseAltitude));
+            cruiseEl.parentElement.querySelector('output').textContent=fmt.cruiseAltitude(p.cruiseAltitude);
+          }
+        }else{
+          cam.x += fwdX*speed*dt;
+          cam.y += fwdY*speed*dt;
+          cam.z += fwdZ*speed*dt;
+
+          // Explicit vertical noclip assist.
+          const vAssist = p.moveSpeed * 0.65 * (keys['shift'] ? p.boost : 1.0);
+          if(keys['e'] || keys[' ']) cam.y += vAssist*dt;
+          if(keys['q'] || keys['c']) cam.y -= vAssist*dt;
+        }
+      }else{
+        const speed=p.moveSpeed * (keys['shift'] ? p.boost : 1.0);
+        let mx=0,my=0,mz=0;
+        if(keys['w']){ mx+=fwdX; my+=fwdY; mz+=fwdZ; }
+        if(keys['s']){ mx-=fwdX; my-=fwdY; mz-=fwdZ; }
+        if(keys['d']){ mx+=rightX; mz+=rightZ; }
+        if(keys['a']){ mx-=rightX; mz-=rightZ; }
+        if(keys['e'] || keys[' ']) my+=1;
+        if(keys['q'] || keys['c']) my-=1;
+        const len=Math.hypot(mx,my,mz);
+        if(len>0){
+          mx/=len; my/=len; mz/=len;
+          cam.x += mx*speed*dt;
+          cam.y += my*speed*dt;
+          cam.z += mz*speed*dt;
+        }
+      }
+    }
+
+    let last=performance.now(), ema=0, tick=0, start=performance.now();
+    let leftPixels=null, rightPixels=null;
+    status.style.display='none';
+    document.getElementById('adaptiveSteps').checked=true;
+    document.getElementById('emptySkip').checked=true;
+    document.getElementById('autoFlight').checked=false;
+    document.getElementById('mouseSteer').checked=true;
+    document.getElementById('fixedAltitude').checked=false;
+    document.getElementById('shaftEnabled').checked=true;
+    document.getElementById('msModel').value='0';
+    sync();
+
+    gl.useProgram(prog);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_3D,noiseTex); gl.uniform1i(un.uNoise,0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_3D,worleyTex); gl.uniform1i(un.uWorleyTex,1);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D,lightFieldTex); gl.uniform1i(un.uLightFieldTex,2);
+
+    function frame(now){
+      const dtSec=Math.min(0.05, Math.max(0.001, (now-last)/1000));
+      updateCamera(dtSec);
+
+      let rs=p.renderScale, cssW=innerWidth, cssH=innerHeight, dpr=Math.min(devicePixelRatio||1,1.25);
+      let tw=Math.max(4,Math.floor(cssW*dpr*rs)), th=Math.max(2,Math.floor(cssH*dpr*rs));
+      tw-=tw%2;
+      if(canvas.width!==tw||canvas.height!==th){
+        canvas.width=tw; canvas.height=th; leftPixels=rightPixels=null;
+      }
+
+      gl.viewport(0,0,canvas.width,canvas.height);
+      gl.useProgram(prog);
+      gl.uniform2f(un.uResolution,canvas.width,canvas.height);
+      gl.uniform1f(un.uTime,document.getElementById('animate').checked?(now-start)/1000:0);
+      gl.uniform1f(un.uLayerHeight,p.layerHeight);
+      gl.uniform1f(un.uVolumeWidth,p.volumeWidth);
+      gl.uniform1f(un.uUpperDensity,p.upperDensity);
+      gl.uniform1f(un.uDistBase,p.distBase);
+      gl.uniform1f(un.uDistTransition,p.distTransition);
+      gl.uniform1f(un.uCoverage,p.coverage);
+
+      gl.uniform1f(un.uProfileUpper,p.profileUpper);
+      gl.uniform1f(un.uProfileBase,p.profileBase);
+      gl.uniform1f(un.uProfileTransition,p.profileTransition);
+      gl.uniform1f(un.uProfileGain,p.profileGain);
+      gl.uniform1f(un.uProfileBottomFadeEnd,p.profileBottomFadeEnd);
+      gl.uniform1f(un.uProfileTopFadeStart,p.profileTopFadeStart);
+
+      gl.uniform1f(un.uPersistence,p.persistence);
+      gl.uniform1f(un.uWorley,p.worley);
+      gl.uniform1f(un.uErosion,p.erosion);
+
+      gl.uniform1f(un.uBottomFadeEnd,p.bottomFadeEnd);
+      gl.uniform1f(un.uTopFadeStart,p.topFadeStart);
+      gl.uniform1f(un.uThresholdBase,p.thresholdBase);
+      gl.uniform1f(un.uCoverageScale,p.coverageScale);
+      gl.uniform1f(un.uThresholdWidth,p.thresholdWidth);
+      gl.uniform1f(un.uDomainXZ,p.domainXZ);
+      gl.uniform1f(un.uDomainY,p.domainY);
+      gl.uniform1f(un.uFbmFreq0,p.fbmFreq0);
+      gl.uniform1f(un.uFbmFreq1,p.fbmFreq1);
+      gl.uniform1f(un.uFbmFreq2,p.fbmFreq2);
+      gl.uniform1f(un.uFbmFreq3,p.fbmFreq3);
+      gl.uniform1f(un.uWorleyFreq,p.worleyFreq);
+      gl.uniform1f(un.uWorleyShapeWeight,p.worleyShapeWeight);
+      gl.uniform1f(un.uErosionFreq,p.erosionFreq);
+      gl.uniform1f(un.uErosionAmp,p.erosionAmp);
+      gl.uniform1f(un.uCoarseMargin,p.coarseMargin);
+
+      gl.uniform1f(un.uDensityGain,p.densityGain);
+      gl.uniform1f(un.uDensityBias,p.densityBias);
+      gl.uniform1f(un.uExtinction,p.extinction);
+      gl.uniform1f(un.uShadowStrength,p.shadowStrength);
+      gl.uniform1f(un.uLightProbe,p.lightProbe);
+      gl.uniform1f(un.uLightStepGrowth,p.lightStepGrowth);
+      gl.uniform1i(un.uLightSteps,p.lightSteps);
+      gl.uniform1f(un.uAmbientStrength,p.ambientStrength);
+      gl.uniform1f(un.uDirectStrength,p.directStrength);
+      gl.uniform1f(un.uSunAzimuth,p.sunAzimuth);
+      gl.uniform1f(un.uSunElevation,p.sunElevation);
+      gl.uniform1f(un.uPhaseG,p.phaseG);
+      gl.uniform1f(un.uPhaseStrength,p.phaseStrength);
+      gl.uniform1f(un.uPowderStrength,p.powderStrength);
+      gl.uniform1f(un.uPowderAmount,p.powderAmount);
+      gl.uniform1f(un.uExposure,p.exposure);
+
+      gl.uniform1f(un.uPhiIntensity,p.phiIntensity);
+      gl.uniform1f(un.uPhiOmega0,p.phiOmega0);
+      gl.uniform1f(un.uPhiMSBuild,p.phiMSBuild);
+      gl.uniform1f(un.uPhiCompress,p.phiCompress);
+      gl.uniform1f(un.uPhiDepthPow,p.phiDepthPow);
+      gl.uniform1f(un.uPhiDepthBias,p.phiDepthBias);
+      gl.uniform1f(un.uPhiBoundaryConfidence,p.phiBoundaryConfidence);
+      gl.uniform1f(un.uPhiShadowFloor,p.phiShadowFloor);
+      gl.uniform1f(un.uPhiShadowPreserve,p.phiShadowPreserve);
+
+      gl.uniform1f(un.uPolyGain,p.polyGain);
+      gl.uniform1f(un.uPolyC0,p.polyC0);
+      gl.uniform1f(un.uPolyC1,p.polyC1);
+      gl.uniform1f(un.uPolyC2,p.polyC2);
+      gl.uniform1f(un.uPolyC3,p.polyC3);
+
+      gl.uniform1f(un.uExpPolyGain,p.expPolyGain);
+      gl.uniform1f(un.uExpC0,p.expC0);
+      gl.uniform1f(un.uExpC1,p.expC1);
+      gl.uniform1f(un.uExpC2,p.expC2);
+      gl.uniform1f(un.uExpC3,p.expC3);
+      gl.uniform1f(un.uMSCurveClamp,p.msCurveClamp);
+      gl.uniform1i(un.uMSModel,parseInt(document.getElementById('msModel').value,10));
+
+      gl.uniform1f(un.uWeatherScaleKm,p.weatherScaleKm);
+      gl.uniform1f(un.uWeatherInfluence,p.weatherInfluence);
+      gl.uniform1f(un.uWeatherWindX,p.weatherWindX);
+      gl.uniform1f(un.uWeatherWindZ,p.weatherWindZ);
+      gl.uniform1f(un.uDetailDriftX,p.detailDriftX);
+      gl.uniform1f(un.uDetailDriftZ,p.detailDriftZ);
+      gl.uniform1f(un.uViewDistance,p.viewDistance);
+
+      gl.uniform3f(un.uCamPos,cam.x,cam.y,cam.z);
+      gl.uniform3f(un.uShaftMapCenter,cam.x,cam.y,cam.z);
+      gl.uniform1f(un.uMaxWorldStep,p.maxWorldStep);
+      gl.uniform1f(un.uViewSoftClip,p.viewSoftClip);
+      gl.uniform1i(un.uHorizonTailSteps,p.horizonTailSteps);
+
+      gl.uniform1f(un.uShaftMapRes,p.shaftMapRes);
+      gl.uniform1f(un.uShaftWorldSize,p.shaftWorldSize);
+      gl.uniform1f(un.uShaftMapDepth,p.shaftMapDepth);
+      gl.uniform1i(un.uShaftMapSteps,p.shaftMapSteps);
+      gl.uniform1f(un.uShaftHitT,p.shaftHitT);
+      gl.uniform1f(un.uShaftHitWidth,p.shaftHitWidth);
+      gl.uniform1f(un.uShaftDepthSoftness,p.shaftDepthSoftness);
+
+      gl.uniform1f(un.uAirScatterStrength,p.airScatterStrength);
+      gl.uniform1f(un.uAirExtinction,p.airExtinction);
+      gl.uniform1f(un.uAirScaleHeight,p.airScaleHeight);
+      gl.uniform1f(un.uAirPhaseG,p.airPhaseG);
+
+      gl.uniform1i(un.uShaftEnabled,document.getElementById('shaftEnabled').checked?1:0);
+
+      gl.uniform1f(un.uCamYaw,cam.yaw);
+      gl.uniform1f(un.uCamPitch,cam.pitch);
+
+      gl.uniform1i(un.uMaxSteps,p.steps);
+      gl.uniform1i(un.uProfileMode,parseInt(document.getElementById('mode').value,10));
+      gl.uniform1i(un.uAdaptiveSteps,document.getElementById('adaptiveSteps').checked?1:0);
+      gl.uniform1i(un.uEmptySkip,document.getElementById('emptySkip').checked?1:0);
+
+      const shaftOn=document.getElementById('shaftEnabled').checked;
+      ensureLightFieldTarget(p.shaftMapRes);
+
+      if(shaftOn){
+        // Pass 1: camera-centered light-space transmittance / weighted-hit-depth atlas.
+        // Unbind texture unit 2 while rendering into that same texture to avoid feedback.
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D,null);
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER,lightFieldFbo);
+        gl.viewport(0,0,p.shaftMapRes*2,p.shaftMapRes);
+        gl.uniform1i(un.uPassMode,1);
+        gl.drawArrays(gl.TRIANGLES,0,3);
+      }
+
+      // Pass 2: normal cloud rendering; one 2D light-field lookup per occupied sample.
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+      gl.viewport(0,0,canvas.width,canvas.height);
+      gl.uniform2f(un.uResolution,canvas.width,canvas.height);
+      gl.uniform1i(un.uPassMode,0);
+
+      gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D,lightFieldTex);
+
+      gl.drawArrays(gl.TRIANGLES,0,3);
+
+      const frameDt=Math.max(1,now-last);
+      last=now;
+      let f=1000/frameDt;
+      ema=ema?ema*.93+f*.07:f;
+      tick++;
+      if((tick&7)===0){
+        document.getElementById('fps').textContent=Math.round(ema);
+        document.getElementById('rtres').textContent=canvas.width+'×'+canvas.height;
+        document.getElementById('pix').textContent=Math.round(rs*rs*100)+'%';
+
+        let region='云层内';
+        if(cam.y<0) region='云层下方';
+        else if(cam.y>p.layerHeight) region='云层上方';
+        const auto=document.getElementById('autoFlight').checked;
+        const hold=document.getElementById('fixedAltitude').checked;
+        const modeTxt=auto
+          ? ('AUTO '+(throttle*100).toFixed(0)+'%'+(hold?' · ALT '+p.cruiseAltitude.toFixed(0)+'m':''))
+          : 'FREE';
+        document.getElementById('camhud').textContent =
+          'XYZ '+cam.x.toFixed(0)+' / '+cam.y.toFixed(0)+' / '+cam.z.toFixed(0)+' m  ·  '+region+
+          '  ·  Layer 0–'+p.layerHeight.toFixed(0)+' m  ·  '+modeTxt+
+          '  ·  Sun '+p.sunAzimuth.toFixed(0)+'°/'+p.sunElevation.toFixed(0)+'°';
+      }
+
+      if(tick%90===0){
+        let hw=canvas.width>>1, hh=canvas.height, n=hw*hh*4;
+        if(!leftPixels||leftPixels.length!==n){ leftPixels=new Uint8Array(n); rightPixels=new Uint8Array(n); }
+        gl.readPixels(0,0,hw,hh,gl.RGBA,gl.UNSIGNED_BYTE,leftPixels);
+        gl.readPixels(hw,0,hw,hh,gl.RGBA,gl.UNSIGNED_BYTE,rightPixels);
+        let sum=0,count=0;
+        for(let i=0;i<n;i+=64){
+          sum+=Math.abs(leftPixels[i]-rightPixels[i])+Math.abs(leftPixels[i+1]-rightPixels[i+1])+Math.abs(leftPixels[i+2]-rightPixels[i+2]);
+          count+=3;
+        }
+        document.getElementById('pixelMae').textContent=(sum/Math.max(1,count)).toFixed(2);
+      }
+
+      requestAnimationFrame(frame);
+    }
+
+    requestAnimationFrame(frame);
+  }catch(err){
+    console.error(err);
+    status.style.display='block';
+    status.textContent='启动失败：'+err.message;
+    status.classList.add('error');
+  }
+}
+</script>
+</body>
+</html>
